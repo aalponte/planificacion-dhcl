@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Planificación - LLYC</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css?v=26">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+</head>
+
+<body>
+    <div class="login-page" id="login-page">
+        <div class="login-container">
+            <div class="login-brand">LLYC</div>
+            <h1>Gestor de Planificación</h1>
+            <p class="login-subtitle">Sistema de Planificación de Recursos</p>
+            <form id="login-form" onsubmit="event.preventDefault(); app.handleLogin();">
+                <div class="form-group">
+                    <label>Usuario</label>
+                    <input type="text" id="login-username" placeholder="usuario" value="">
+                </div>
+                <div class="form-group">
+                    <label>Contraseña</label>
+                    <input type="password" id="login-password" placeholder="" value="">
+                </div>
+                <button type="submit" class="login-button">Acceder</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="app-container" class="hidden">
+        <nav class="navbar">
+            <div class="navbar-brand">
+                <span>LLYC</span>
+                <span style="opacity: 0.5; font-weight: 400;">|</span>
+                <span style="font-weight: 400; font-size: 12px;">Planificación</span>
+            </div>
+            <div class="navbar-menu">
+                <button class="nav-menu-item active" onclick="app.navigateTo('dashboard')"
+                    id="nav-dashboard">Resumen</button>
+                <button class="nav-menu-item" onclick="app.navigateTo('viewer')"
+                    id="nav-viewer">Visor</button>
+                <button class="nav-menu-item" onclick="app.navigateTo('planning')"
+                    id="nav-planning">Planificación</button>
+                <button class="nav-menu-item" onclick="app.navigateTo('config')" id="nav-config">Configuración</button>
+            </div>
+            <div class="navbar-user">
+                <span id="navbar-username" style="color: var(--llyc-gray-subtext); font-size: 13px;">Admin</span>
+                <button onclick="app.logout()" class="btn-logout" title="Cerrar sesión">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </nav>
+
+        <main class="dashboard">
+            <!-- DASHBOARD VIEW -->
+            <div id="view-dashboard" class="view-section">
+                <div class="section-header">
+                    <h2 class="section-title">Resumen de Planificación</h2>
+                    <p class="section-subtitle">Visión general de la asignación de recursos y carga de trabajo</p>
+                </div>
+
+                <!-- Date Range Selector -->
+                <div class="section-card">
+                    <div class="date-range-selector">
+                        <div class="date-input-group">
+                            <label>Fecha Inicio</label>
+                            <input type="date" id="dash-start-date" class="form-control">
+                        </div>
+                        <div class="date-input-group">
+                            <label>Fecha Fin</label>
+                            <input type="date" id="dash-end-date" class="form-control">
+                        </div>
+                        <button onclick="app.updateDashboard()" class="btn btn-primary">Actualizar</button>
+                    </div>
+                </div>
+
+                <!-- KPI Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Horas Asignadas</div>
+                        <div class="stat-value" id="dash-total-hours">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Colaboradores Activos</div>
+                        <div class="stat-value" id="dash-active-collaborators">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Proyectos Activos/En curso</div>
+                        <div class="stat-value" id="dash-active-projects">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Promedio de Asignación</div>
+                        <div class="stat-value" id="dash-avg-allocation">0h</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Personas en Vacaciones/Feriado</div>
+                        <div class="stat-value" id="dash-vacation-collaborators">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Personas en Capacitación/Innovación</div>
+                        <div class="stat-value" id="dash-training-collaborators">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Horas de Capacitación</div>
+                        <div class="stat-value" id="dash-training-hours">0h</div>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>Distribución por Tipo de Proyecto</h3>
+                        <div style="height: 300px; position: relative;">
+                            <canvas id="project-type-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Horas por Colaborador</h3>
+                        <div style="height: 300px; position: relative;">
+                            <canvas id="collaborator-hours-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEWER VIEW (Solo lectura) -->
+            <div id="view-viewer" class="view-section hidden">
+                <div class="section-header">
+                    <h2 class="section-title">Visor de Planificación</h2>
+                    <p class="section-subtitle">Consulta de asignaciones por semana (solo lectura)</p>
+                </div>
+                <div class="section-card" style="margin-bottom: 24px;">
+                    <div style="display: flex; gap: 16px;">
+                        <select id="viewer-year" class="form-control" style="width: 120px;"
+                            onchange="app.loadViewer()"></select>
+                        <select id="viewer-week" class="form-control" style="width: 200px;"
+                            onchange="app.loadViewer()"></select>
+                    </div>
+                </div>
+                <div class="section-card">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 200px;">Colaborador</th>
+                                <th>Asignaciones</th>
+                                <th style="width: 100px; text-align: center;">Total Horas</th>
+                            </tr>
+                        </thead>
+                        <tbody id="viewer-grid-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- PLANNING VIEW -->
+            <div id="view-planning" class="view-section hidden">
+                <div class="section-header">
+                    <h2 class="section-title">Planificación Semanal</h2>
+                    <p class="section-subtitle">Consulta y gestiona asignaciones por semana</p>
+                </div>
+                <div class="section-card" style="margin-bottom: 24px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                        <div style="display: flex; gap: 16px;">
+                            <select id="plan-year" class="form-control" style="width: 120px;"
+                                onchange="app.loadPlanning()"></select>
+                            <select id="plan-week" class="form-control" style="width: 200px;"
+                                onchange="app.loadPlanning()"></select>
+                        </div>
+                        <div style="display: flex; gap: 12px;">
+                            <button onclick="app.copyPreviousWeek()" class="btn btn-secondary"><i
+                                    class="fas fa-copy"></i>
+                                Copiar Semana Anterior</button>
+                            <button onclick="app.deleteWeekPlanning()" class="btn btn-danger"
+                                style="background-color: #dc3545; color: white;"><i class="fas fa-trash"></i>
+                                Eliminar
+                                Semana</button>
+                            <button onclick="app.createNewPlanning()" class="btn btn-primary"><i
+                                    class="fas fa-plus"></i>
+                                Nueva Planificación</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="section-card">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 200px;">Colaborador</th>
+                                <th>Asignaciones</th>
+                                <th style="width: 100px; text-align: center;">Total Horas</th>
+                            </tr>
+                        </thead>
+                        <tbody id="planning-grid-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- CONFIGURATION VIEW -->
+            <div id="view-config" class="view-section hidden">
+                <div class="section-header">
+                    <h2 class="section-title">Configuración</h2>
+                    <p class="section-subtitle">Gestión de catálogos maestros del sistema</p>
+                </div>
+                <div class="view-tabs">
+                    <button class="view-tab active" onclick="app.switchConfigTab('colaboradores')"
+                        id="tab-colaboradores">Colaboradores</button>
+                    <button class="view-tab" onclick="app.switchConfigTab('clientes')"
+                        id="tab-clientes">Clientes</button>
+                    <button class="view-tab" onclick="app.switchConfigTab('proyectos')"
+                        id="tab-proyectos">Proyectos</button>
+                    <button class="view-tab" onclick="app.switchConfigTab('tipos')" id="tab-tipos">Tipo de Proyecto</button>
+                    <button class="view-tab" onclick="app.switchConfigTab('usuarios')" id="tab-usuarios">Usuarios</button>
+                </div>
+
+                <!-- Config: Colaboradores -->
+                <div id="config-colaboradores" class="config-tab-content section-card">
+                    <div class="config-actions">
+                        <button class="btn btn-primary" onclick="app.openAddModal('colaboradores')"><i
+                                class="fas fa-plus"></i>
+                            Añadir</button>
+                        <button class="btn btn-secondary" onclick="app.openImportModal('colaboradores')"><i
+                                class="fas fa-upload"></i> Importar CSV</button>
+                        <button class="btn btn-secondary" onclick="app.deleteSelected('colaboradores')"><i
+                                class="fas fa-trash"></i>
+                            Eliminar Seleccionados</button>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;"><input type="checkbox" class="select-all"
+                                        onchange="app.toggleSelectAll('colaboradores', this.checked)"></th>
+                                <th style="width: 80px;">ID</th>
+                                <th>Nombre</th>
+                                <th style="width: 150px; text-align: right;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-colaboradores"></tbody>
+                    </table>
+                </div>
+
+                <!-- Config: Clientes -->
+                <div id="config-clientes" class="config-tab-content section-card hidden">
+                    <div class="config-actions">
+                        <button class="btn btn-primary" onclick="app.openAddModal('clientes')"><i
+                                class="fas fa-plus"></i>
+                            Añadir</button>
+                        <button class="btn btn-secondary" onclick="app.openImportModal('clientes')"><i
+                                class="fas fa-upload"></i>
+                            Importar CSV</button>
+                        <button class="btn btn-secondary" onclick="app.deleteSelected('clientes')"><i
+                                class="fas fa-trash"></i>
+                            Eliminar Seleccionados</button>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;"><input type="checkbox" class="select-all"
+                                        onchange="app.toggleSelectAll('clientes', this.checked)"></th>
+                                <th style="width: 80px;">ID</th>
+                                <th>Cliente</th>
+                                <th>Proyecto</th>
+                                <th>Tipo</th>
+                                <th style="width: 150px; text-align: right;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-clientes"></tbody>
+                    </table>
+                </div>
+
+                <!-- Config: Proyectos -->
+                <div id="config-proyectos" class="config-tab-content section-card hidden">
+                    <div class="config-actions">
+                        <button class="btn btn-primary" onclick="app.openAddModal('proyectos')"><i
+                                class="fas fa-plus"></i>
+                            Añadir</button>
+                        <button class="btn btn-secondary" onclick="app.openImportModal('proyectos')"><i
+                                class="fas fa-upload"></i>
+                            Importar CSV</button>
+                        <button class="btn btn-secondary" onclick="app.deleteSelected('proyectos')"><i
+                                class="fas fa-trash"></i>
+                            Eliminar Seleccionados</button>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;"><input type="checkbox" class="select-all"
+                                        onchange="app.toggleSelectAll('proyectos', this.checked)"></th>
+                                <th style="width: 80px;">ID</th>
+                                <th>Nombre</th>
+                                <th style="width: 150px; text-align: right;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-proyectos"></tbody>
+                    </table>
+                </div>
+
+                <!-- Config: Tipos -->
+                <div id="config-tipos" class="config-tab-content section-card hidden">
+                    <div class="config-actions">
+                        <button class="btn btn-primary" onclick="app.openAddModal('tipos')"><i class="fas fa-plus"></i>
+                            Añadir</button>
+                        <button class="btn btn-secondary" onclick="app.openImportModal('tipos')"><i
+                                class="fas fa-upload"></i>
+                            Importar CSV</button>
+                        <button class="btn btn-secondary" onclick="app.deleteSelected('tipos')"><i
+                                class="fas fa-trash"></i>
+                            Eliminar Seleccionados</button>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;"><input type="checkbox" class="select-all"
+                                        onchange="app.toggleSelectAll('tipos', this.checked)"></th>
+                                <th style="width: 80px;">ID</th>
+                                <th>Nombre</th>
+                                <th style="width: 150px; text-align: right;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-tipos"></tbody>
+                    </table>
+                </div>
+                <!-- Config: Usuarios -->
+                <div id="config-usuarios" class="config-tab-content section-card hidden">
+                    <div class="config-actions">
+                        <button class="btn btn-primary" onclick="app.openUserModal()"><i class="fas fa-plus"></i> Añadir Usuario</button>
+                        <button class="btn btn-secondary" onclick="app.deleteSelected('usuarios')"><i class="fas fa-trash"></i> Eliminar Seleccionados</button>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;"><input type="checkbox" class="select-all" onchange="app.toggleSelectAll('usuarios', this.checked)"></th>
+                                <th style="width: 80px;">ID</th>
+                                <th>Usuario</th>
+                                <th>Nombre</th>
+                                <th>Rol</th>
+                                <th style="width: 150px; text-align: right;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-usuarios"></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+
+        <!-- MODALS -->
+        <div id="crud-modal" class="modal hidden">
+            <div class="modal-overlay" onclick="app.closeModal()"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modal-title">Añadir Registro</h3>
+                    <button class="modal-close" onclick="app.closeModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="crud-form" onsubmit="event.preventDefault(); app.saveRecord();">
+                        <div class="form-group">
+                            <label id="name-label">Nombre</label>
+                            <input type="text" id="record-name" class="form-control" required>
+                        </div>
+                        <div id="cliente-fields" class="hidden">
+                            <div class="form-group">
+                                <label>Proyecto</label>
+                                <select id="record-proyecto" class="form-control">
+                                    <option value="">-- Seleccionar --</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Tipo de Proyecto</label>
+                                <select id="record-tipo" class="form-control">
+                                    <option value="">-- Seleccionar --</option>
+                                </select>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="app.closeModal()">Cancelar</button>
+                    <button class="btn btn-primary" onclick="app.saveRecord()">Guardar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="import-modal" class="modal hidden">
+            <div class="modal-overlay" onclick="app.closeImportModal()"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Importar desde CSV</h3>
+                    <button class="modal-close" onclick="app.closeImportModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <input type="file" id="csv-file-input" accept=".csv" class="form-control">
+                        <p style="font-size: 13px; color: var(--llyc-gray-subtext); margin-top: 8px;">Selecciona un
+                            archivo CSV. La primera columna debe contener los nombres.</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="app.closeImportModal()">Cancelar</button>
+                    <button class="btn btn-primary" onclick="app.importCSV()">Importar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="allocation-modal" class="modal hidden">
+            <div class="modal-overlay" onclick="app.closeAllocationModal()"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="alloc-modal-title">Editar Asignación</h3>
+                    <button class="modal-close" onclick="app.closeAllocationModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="alloc-form" onsubmit="event.preventDefault(); app.saveAllocation();">
+                        <input type="hidden" id="alloc-id">
+                        <input type="hidden" id="alloc-colaborador-id">
+                        <input type="hidden" id="alloc-date">
+                        <div class="form-group">
+                            <label>Cliente</label>
+                            <select id="alloc-cliente" class="form-control" required>
+                                <option value="">-- Seleccionar --</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Horas</label>
+                            <input type="number" id="alloc-hours" class="form-control" min="0.5" step="0.5" max="24"
+                                required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-danger" id="btn-delete-alloc" onclick="app.deleteAllocation()"
+                        style="margin-right: auto;">Eliminar</button>
+                    <button class="btn btn-secondary" onclick="app.closeAllocationModal()">Cancelar</button>
+                    <button class="btn btn-primary" onclick="app.saveAllocation()">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>        <!-- User Modal -->
+        <div id="user-modal" class="modal hidden">
+            <div class="modal-overlay" onclick="app.closeUserModal()"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="user-modal-title">Añadir Usuario</h3>
+                    <button class="modal-close" onclick="app.closeUserModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="user-form">
+                        <input type="hidden" id="user-id">
+                        <div class="form-group">
+                            <label>Usuario</label>
+                            <input type="text" id="user-username" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Nombre Completo</label>
+                            <input type="text" id="user-name" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>Contraseña</label>
+                            <input type="password" id="user-password" class="form-control" placeholder="Dejar vacío para no cambiar">
+                        </div>
+                        <div class="form-group">
+                            <label>Rol</label>
+                            <select id="user-role" class="form-control" required>
+                                <option value="">-- Seleccionar --</option>
+                                <option value="administrador">Administrador</option>
+                                <option value="visualizador">Visualizador</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="app.closeUserModal()">Cancelar</button>
+                    <button class="btn btn-primary" onclick="app.saveUser()">Guardar</button>
+                </div>
+            </div>
+        </div>
+
+
+    <script src="app.js"></script>
+    <script src="dashboard.js"></script>
+</body>
+
+</html>

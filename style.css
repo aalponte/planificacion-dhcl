@@ -1,0 +1,209 @@
+@import "https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap";
+
+:root {
+    --llyc-red: #E63946;
+    --llyc-light-gray: #e5e7eb;
+    /* Tailwind slate-200 approx */
+    --llyc-gray: #2C3E50;
+}
+
+body {
+    font-family: 'Montserrat', sans-serif;
+    background-color: #F5F7FA;
+    margin: 0;
+    padding-top: 60px;
+    /* Space for fixed navbar */
+}
+
+/* --- Login Page --- */
+.login-page {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #f5f7fa, #e8ecf1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+.login-container {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    padding: 40px;
+    max-width: 400px;
+    width: 100%;
+    text-align: center;
+}
+
+.login-logo {
+    height: 60px;
+    margin-bottom: 20px;
+    /* Placeholder style if image missing */
+    background: var(--llyc-red);
+    width: 60px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+}
+
+.login-container h1 {
+    color: var(--llyc-gray);
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0 0 8px;
+}
+
+.login-subtitle {
+    color: #7f8c8d;
+    font-size: 14px;
+    margin: 0 0 30px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.form-group label {
+    display: block;
+    color: var(--llyc-gray);
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color .3s;
+    box-sizing: border-box;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--llyc-red);
+}
+
+.login-button {
+    width: 100%;
+    padding: 12px;
+    background: var(--llyc-red);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .3s;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.login-button:hover {
+    background: #d32f3c;
+}
+
+/* --- Navbar --- */
+.navbar {
+    background-color: #fff;
+    border-bottom: 1px solid var(--llyc-light-gray);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    padding: 0.75rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 60px;
+    box-sizing: border-box;
+}
+
+.navbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-weight: 700;
+    color: var(--llyc-gray);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.navbar-menu {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.nav-menu-item {
+    background: none;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--llyc-gray);
+    cursor: pointer;
+    transition: all .3s ease;
+    border-bottom: 3px solid transparent;
+    text-decoration: none;
+}
+
+.nav-menu-item:hover,
+.nav-menu-item.active {
+    color: var(--llyc-red);
+    border-bottom-color: var(--llyc-red);
+}
+
+/* --- Dashboard / Main Content --- */
+.dashboard {
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* --- View Tabs (Sub-navigation) --- */
+.view-tabs {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    border-bottom: 2px solid var(--llyc-light-gray);
+}
+
+.view-tab {
+    padding: 12px 24px;
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    font-size: 15px;
+    font-weight: 600;
+    color: #666;
+    cursor: pointer;
+    transition: all .2s ease;
+    font-family: 'Montserrat', sans-serif;
+    margin-bottom: -2px;
+}
+
+.view-tab:hover,
+.view-tab.active {
+    color: var(--llyc-red);
+    border-bottom-color: var(--llyc-red);
+}
+
+/* --- Utility / Overrides --- */
+.hidden {
+    display: none !important;
+}

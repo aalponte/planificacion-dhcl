@@ -1,0 +1,54 @@
+# Dependencies
+node_modules
+
+# Database files (SQLite - only for local development)
+*.sqlite
+*.db
+database.sqlite
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Git
+.git
+.gitignore
+
+# Development files
+*.md
+*.backup
+reference_*.js
+reference_*.css
+check_*.js
+analyze_*.js
+generate_*.js
+seed.js
+import_*.js
+debug_output.txt
+
+# Test files
+test-*.html
+
+# Data files (will be in Cloud SQL)
+*.csv
+*.xlsx
+*.xls
+
+# Uploads (temporary)
+uploads/*
+!uploads/.gitkeep
+
+# Environment files
+.env
+.env.local
+.env.production
