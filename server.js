@@ -1237,6 +1237,33 @@ app.delete('/api/allocations/week/:year/:week', requireAdmin, (req, res) => {
     );
 });
 
+// Delete allocations for a specific collaborator on a specific day
+app.delete('/api/allocations/collaborator-day/:colaborador_id/:date', requireAdmin, (req, res) => {
+    const colaborador_id = validateId(req.params.colaborador_id);
+    const date = validateDate(req.params.date);
+    const id_area = req.query.id_area ? validateId(req.query.id_area) : null;
+
+    if (!colaborador_id || !date) {
+        return res.status(400).json({ error: 'Datos inválidos' });
+    }
+
+    let sql = 'DELETE FROM allocations WHERE colaborador_id = ? AND date = ?';
+    const params = [colaborador_id, date];
+
+    if (id_area) {
+        sql += ' AND id_area = ?';
+        params.push(id_area);
+    }
+
+    db.run(sql, params, function(err) {
+        if (err) return res.status(500).json({ error: 'Error del servidor' });
+        res.json({
+            message: `Eliminadas ${this.changes} asignaciones`,
+            changes: this.changes
+        });
+    });
+});
+
 // ============================================
 // Dashboard Analytics Endpoint
 // ============================================

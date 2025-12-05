@@ -622,6 +622,104 @@ const app = {
         }
     },
 
+    async copyPreviousDayAllocations(colaboradorId, targetDateStr) {
+        // Calculate previous day
+        const targetDate = new Date(targetDateStr);
+        const prevDate = new Date(targetDate);
+        prevDate.setDate(prevDate.getDate() - 1);
+        const prevDateStr = prevDate.toISOString().split('T')[0];
+
+        // Get area id
+        const areaId = document.getElementById('plan-area')?.value;
+        if (!areaId) {
+            alert('Por favor selecciona un área primero.');
+            return;
+        }
+
+        // Fetch previous day's allocations for this collaborator
+        const year = prevDate.getFullYear();
+        const prevWeek = this.getISOWeek(prevDate);
+
+        try {
+            const response = await fetch(`/api/allocations?year=${year}&week=${prevWeek}&id_area=${areaId}`, {
+                credentials: 'include'
+            });
+            const allocations = await response.json();
+
+            // Filter allocations for this collaborator and previous date
+            const prevDayAllocations = allocations.filter(
+                a => parseInt(a.colaborador_id) === parseInt(colaboradorId) && a.date === prevDateStr
+            );
+
+            if (prevDayAllocations.length === 0) {
+                alert(`No hay asignaciones para ${this.state.colaboradores.find(c => c.id == colaboradorId)?.name || 'este colaborador'} el día anterior (${prevDateStr}).`);
+                return;
+            }
+
+            // Get collaborator name for confirmation
+            const colaboradorName = this.state.colaboradores.find(c => c.id == colaboradorId)?.name || 'el colaborador';
+
+            // Show confirmation with warning
+            const clientNames = prevDayAllocations.map(a => `${a.cliente_name}: ${a.hours}h`).join('\n');
+            const confirmed = confirm(
+                `Se copiarán las siguientes asignaciones del día anterior (${prevDateStr}) para ${colaboradorName}:\n\n` +
+                `${clientNames}\n\n` +
+                `ADVERTENCIA: Las asignaciones existentes de ${colaboradorName} para el día ${targetDateStr} serán eliminadas.\n\n` +
+                `¿Deseas continuar?`
+            );
+
+            if (!confirmed) return;
+
+            // Get target week number
+            const targetWeek = this.getISOWeek(targetDate);
+            const targetYear = targetDate.getFullYear();
+
+            // Delete existing allocations for this collaborator on target date
+            const deleteResponse = await fetch(`/api/allocations/collaborator-day/${colaboradorId}/${targetDateStr}?id_area=${areaId}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+
+            if (!deleteResponse.ok) {
+                throw new Error('Error al eliminar asignaciones existentes');
+            }
+
+            // Create new allocations copying from previous day
+            for (const alloc of prevDayAllocations) {
+                await fetch('/api/allocations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        colaborador_id: colaboradorId,
+                        cliente_id: alloc.cliente_id,
+                        date: targetDateStr,
+                        hours: alloc.hours,
+                        week_number: targetWeek,
+                        year: targetYear,
+                        id_area: areaId
+                    })
+                });
+            }
+
+            // Refresh planning grid
+            await this.loadPlanningData();
+            alert(`Se copiaron ${prevDayAllocations.length} asignación(es) exitosamente.`);
+
+        } catch (error) {
+            console.error('[App] Error copying previous day allocations:', error);
+            alert('Error al copiar las asignaciones del día anterior: ' + error.message);
+        }
+    },
+
+    getISOWeek(date) {
+        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        const dayNum = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    },
+
     renderPlanningCells(allocations, colaboradorId) {
         const year = parseInt(document.getElementById('plan-year')?.value || this.state.currentYear);
         const week = parseInt(document.getElementById('plan-week')?.value || this.state.currentWeek);
@@ -652,7 +750,12 @@ const app = {
 
             html += `
                 <div class="day-cell">
-                    <div class="day-cell-header">${this.escapeHtml(dayName)} ${this.escapeHtml(dayMonth)}</div>
+                    <div class="day-cell-header">
+                        <span>${this.escapeHtml(dayName)} ${this.escapeHtml(dayMonth)}</span>
+                        <button class="copy-prev-day-btn" onclick="app.copyPreviousDayAllocations(${parseInt(colaboradorId)}, '${this.escapeHtml(dateStr)}')" title="Copiar asignaciones del día anterior">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        </button>
+                    </div>
                     ${dayAllocations.map(alloc => `
                         <div class="allocation-item clickable" onclick="app.openAllocationModal(${parseInt(alloc.id)}, null, null)">
                             <strong>${this.escapeHtml(alloc.cliente_name)}</strong>: ${parseFloat(alloc.hours)}h

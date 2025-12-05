@@ -1001,6 +1001,38 @@ select.form-control {
     padding-bottom: 4px;
     border-bottom: 1px solid #eee;
     white-space: nowrap;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Copy previous day button */
+.copy-prev-day-btn {
+    background: none;
+    border: none;
+    padding: 2px 4px;
+    cursor: pointer;
+    color: #999;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.copy-prev-day-btn:hover {
+    background: #e3f2fd;
+    color: #2196f3;
+}
+
+.copy-prev-day-btn:active {
+    background: #bbdefb;
+}
+
+.copy-prev-day-btn svg {
+    width: 14px;
+    height: 14px;
 }
 
 /* Allocation item (client + hours) */
