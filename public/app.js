@@ -745,6 +745,26 @@ const app = {
             return;
         }
 
+        // Special handling for colaboradores table
+        if (table === 'colaboradores') {
+            data.forEach(item => {
+                const tr = document.createElement('tr');
+                const areaLabel = item.area_name ? this.escapeHtml(item.area_name) : '<em style="color:#999;">Sin área</em>';
+                tr.innerHTML = `
+                    <td><input type="checkbox" class="row-checkbox" data-id="${parseInt(item.id)}"></td>
+                    <td>${parseInt(item.id)}</td>
+                    <td>${this.escapeHtml(item.name)}</td>
+                    <td>${areaLabel}</td>
+                    <td style="text-align: right;">
+                        <button class="btn-icon" onclick="app.editRecord('colaboradores', ${parseInt(item.id)})"><i class="fas fa-edit"></i></button>
+                        <button class="btn-icon" onclick="app.deleteRecord('colaboradores', ${parseInt(item.id)})"><i class="fas fa-trash"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            return;
+        }
+
         data.forEach(item => {
             const tr = document.createElement('tr');
             const areaLabel = item.area_name ? this.escapeHtml(item.area_name) : '<em style="color:#999;">-</em>';
@@ -882,6 +902,21 @@ const app = {
         document.getElementById('modal-title').textContent = `Añadir ${tableLabels[table] || table}`;
         document.getElementById('record-name').value = '';
         document.getElementById('cliente-fields').classList.toggle('hidden', table !== 'clientes');
+
+        // Show/hide colaborador area field
+        const colaboradorAreaField = document.getElementById('colaborador-area-field');
+        if (colaboradorAreaField) {
+            colaboradorAreaField.classList.toggle('hidden', table !== 'colaboradores');
+            if (table === 'colaboradores') {
+                const areaSelect = document.getElementById('colaborador-area');
+                areaSelect.innerHTML = '<option value="">-- Sin área --</option>' + this.state.areas.map(a => `<option value="${a.id}">${this.escapeHtml(a.name)}</option>`).join('');
+                // Default to currently selected area
+                if (this.state.selectedAreaId) {
+                    areaSelect.value = this.state.selectedAreaId;
+                }
+            }
+        }
+
         if (table === 'clientes') {
             const proySelect = document.getElementById('record-proyecto');
             const tipoSelect = document.getElementById('record-tipo');
@@ -913,6 +948,18 @@ const app = {
         document.getElementById('modal-title').textContent = `Editar ${tableLabels[table] || table}`;
         document.getElementById('record-name').value = item.name;
         document.getElementById('cliente-fields').classList.toggle('hidden', table !== 'clientes');
+
+        // Show/hide colaborador area field
+        const colaboradorAreaField = document.getElementById('colaborador-area-field');
+        if (colaboradorAreaField) {
+            colaboradorAreaField.classList.toggle('hidden', table !== 'colaboradores');
+            if (table === 'colaboradores') {
+                const areaSelect = document.getElementById('colaborador-area');
+                areaSelect.innerHTML = '<option value="">-- Sin área --</option>' + this.state.areas.map(a => `<option value="${a.id}">${this.escapeHtml(a.name)}</option>`).join('');
+                areaSelect.value = item.id_area || '';
+            }
+        }
+
         if (table === 'clientes') {
             const proySelect = document.getElementById('record-proyecto');
             const tipoSelect = document.getElementById('record-tipo');
@@ -944,6 +991,10 @@ const app = {
             body.id_proyecto = document.getElementById('record-proyecto').value || null;
             body.id_tipo_proyecto = document.getElementById('record-tipo').value || null;
             const areaSelect = document.getElementById('record-area');
+            body.id_area = areaSelect && areaSelect.value ? parseInt(areaSelect.value) : null;
+        }
+        if (table === 'colaboradores') {
+            const areaSelect = document.getElementById('colaborador-area');
             body.id_area = areaSelect && areaSelect.value ? parseInt(areaSelect.value) : null;
         }
         try {
@@ -1238,8 +1289,37 @@ const app = {
 
             const collaboratorIds = Array.from(uniqueCollaborators);
 
+            // If no collaborators found in current week, try to get collaborators from the area
+            if (collaboratorIds.length === 0 && id_area) {
+                // Get collaborators by area
+                const areaColabsResponse = await fetch(`/api/config/colaboradores/by-area/${id_area}`, {
+                    credentials: 'include'
+                });
+                const areaCollaborators = await areaColabsResponse.json();
+
+                if (areaCollaborators.length === 0) {
+                    alert('No hay colaboradores asignados al área seleccionada. Por favor, asigne colaboradores al área en el maestro de colaboradores.');
+                    return;
+                }
+
+                // Use collaborators from the area
+                areaCollaborators.forEach(c => uniqueCollaborators.add(c.id));
+                collaboratorIds.push(...Array.from(uniqueCollaborators));
+
+                // Find vacation client for this area (client with tipo "Otro" and name containing "Vacacion" for this area)
+                const vacationClient = this.state.clientes.find(c =>
+                    c.id_area === id_area &&
+                    (c.name.toLowerCase().includes('vacacion') || c.name.toLowerCase().includes('feriado'))
+                );
+
+                if (vacationClient) {
+                    // Use the vacation client id instead of 10
+                    this._vacationClientId = vacationClient.id;
+                }
+            }
+
             if (collaboratorIds.length === 0) {
-                alert('No hay colaboradores en la semana actual para crear la nueva planificación.');
+                alert('No hay colaboradores para crear la nueva planificación. Por favor, asigne colaboradores al área en el maestro de colaboradores.');
                 return;
             }
 
@@ -1251,7 +1331,11 @@ const app = {
             const weekStart = new Date(firstDayOfYear.getTime() + daysOffset * 24 * 60 * 60 * 1000);
             weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Adjust to Sunday
 
-            // Create allocations for each collaborator with 8 hours assigned to cliente_id=10
+            // Determine which client to use (vacation client for the area, or default cliente_id=10)
+            const clientIdToUse = this._vacationClientId || 10;
+            delete this._vacationClientId; // Clean up temp variable
+
+            // Create allocations for each collaborator with 8 hours assigned to vacation client
             let createdCount = 0;
             for (const colaboradorId of collaboratorIds) {
                 // Create one allocation for Monday of that week with 8 hours
@@ -1265,7 +1349,7 @@ const app = {
                     credentials: 'include',
                     body: JSON.stringify({
                         colaborador_id: colaboradorId,
-                        cliente_id: 10, // Always use cliente_id = 10
+                        cliente_id: clientIdToUse,
                         hours: 8, // 8 hours by default
                         date: dateStr,
                         week_number: nextWeek,

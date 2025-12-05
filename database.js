@@ -63,6 +63,17 @@ function runMigrations() {
         db.run('CREATE INDEX IF NOT EXISTS idx_allocations_area ON allocations(id_area)', () => {});
     });
 
+    // Add id_area column to colaboradores if not exists
+    db.run('ALTER TABLE colaboradores ADD COLUMN id_area INTEGER REFERENCES areas(id)', (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+            // Column already exists, ignore
+        } else if (!err) {
+            console.log('Migration: Added id_area to colaboradores');
+        }
+        // Create index after column exists
+        db.run('CREATE INDEX IF NOT EXISTS idx_colaboradores_area ON colaboradores(id_area)', () => {});
+    });
+
     // Update existing clientes records with default area (lowest ID) if id_area is NULL
     setTimeout(() => {
         db.get('SELECT id FROM areas ORDER BY id ASC LIMIT 1', (err, area) => {

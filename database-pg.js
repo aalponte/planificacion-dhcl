@@ -34,6 +34,7 @@ INSERT INTO areas (name) VALUES ('Channel Lab') ON CONFLICT (name) DO NOTHING;
 CREATE TABLE IF NOT EXISTS colaboradores (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
+    id_area INTEGER REFERENCES areas(id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -97,6 +98,7 @@ CREATE INDEX IF NOT EXISTS idx_clientes_proyecto ON clientes(id_proyecto);
 CREATE INDEX IF NOT EXISTS idx_clientes_tipo ON clientes(id_tipo_proyecto);
 CREATE INDEX IF NOT EXISTS idx_clientes_area ON clientes(id_area);
 CREATE INDEX IF NOT EXISTS idx_usuarios_area ON usuarios(id_area);
+CREATE INDEX IF NOT EXISTS idx_colaboradores_area ON colaboradores(id_area);
 
 -- Insert default admin user with bcrypt hashed password (admin123)
 -- The password below is bcrypt hash of 'admin123' with cost factor 12
@@ -110,9 +112,41 @@ async function initializeDatabase() {
     try {
         await pool.query(schema);
         console.log('PostgreSQL database schema initialized successfully');
+
+        // Run migrations for existing databases
+        await runMigrations();
     } catch (err) {
         console.error('Error initializing PostgreSQL database schema:', err);
         throw err;
+    }
+}
+
+// Run migrations for existing databases
+async function runMigrations() {
+    try {
+        // Add id_area column to colaboradores if not exists
+        const checkColumn = await pool.query(`
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = 'colaboradores' AND column_name = 'id_area'
+        `);
+
+        if (checkColumn.rows.length === 0) {
+            await pool.query(`
+                ALTER TABLE colaboradores
+                ADD COLUMN id_area INTEGER REFERENCES areas(id) ON DELETE SET NULL
+            `);
+            console.log('Migration: Added id_area column to colaboradores');
+
+            // Create index
+            await pool.query(`
+                CREATE INDEX IF NOT EXISTS idx_colaboradores_area ON colaboradores(id_area)
+            `);
+            console.log('Migration: Created index idx_colaboradores_area');
+        }
+    } catch (err) {
+        console.error('Error running migrations:', err);
+        // Don't throw - migrations are optional improvements
     }
 }
 

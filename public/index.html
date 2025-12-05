@@ -258,6 +258,7 @@
                                         onchange="app.toggleSelectAll('colaboradores', this.checked)"></th>
                                 <th style="width: 80px;">ID</th>
                                 <th>Nombre</th>
+                                <th>Área</th>
                                 <th style="width: 150px; text-align: right;">Acciones</th>
                             </tr>
                         </thead>
@@ -406,6 +407,14 @@
                         <div class="form-group">
                             <label id="name-label">Nombre</label>
                             <input type="text" id="record-name" class="form-control" required>
+                        </div>
+                        <div id="colaborador-area-field" class="hidden">
+                            <div class="form-group">
+                                <label>Área</label>
+                                <select id="colaborador-area" class="form-control">
+                                    <option value="">-- Sin área --</option>
+                                </select>
+                            </div>
                         </div>
                         <div id="cliente-fields" class="hidden">
                             <div class="form-group">

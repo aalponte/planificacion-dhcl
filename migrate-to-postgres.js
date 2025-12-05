@@ -80,6 +80,7 @@ async function createSchema() {
         CREATE TABLE colaboradores (
             id SERIAL PRIMARY KEY,
             name TEXT NOT NULL UNIQUE,
+            id_area INTEGER REFERENCES areas(id) ON DELETE SET NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -141,6 +142,7 @@ async function createSchema() {
         CREATE INDEX idx_clientes_tipo ON clientes(id_tipo_proyecto);
         CREATE INDEX idx_clientes_area ON clientes(id_area);
         CREATE INDEX idx_usuarios_area ON usuarios(id_area);
+        CREATE INDEX idx_colaboradores_area ON colaboradores(id_area);
     `;
 
     await pgQuery(schema);

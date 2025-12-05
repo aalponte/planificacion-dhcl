@@ -480,7 +480,10 @@ app.delete('/api/config/usuarios', requireAdmin, (req, res) => {
 
 // COLABORADORES
 app.get('/api/config/colaboradores', requireAuth, (req, res) => {
-    db.all('SELECT * FROM colaboradores ORDER BY name', (err, rows) => {
+    db.all(`SELECT c.*, a.name as area_name
+            FROM colaboradores c
+            LEFT JOIN areas a ON c.id_area = a.id
+            ORDER BY c.name`, (err, rows) => {
         if (err) return res.status(500).json({ error: 'Error del servidor' });
         res.json(rows);
     });
@@ -491,10 +494,11 @@ app.post('/api/config/colaboradores', requireAdmin, (req, res) => {
     if (!name || name.length < 2 || name.length > 100) {
         return res.status(400).json({ error: 'Nombre inválido (2-100 caracteres)' });
     }
+    const id_area = req.body.id_area ? validateId(req.body.id_area) : null;
 
-    db.run('INSERT INTO colaboradores (name) VALUES (?)', [name], function(err) {
+    db.run('INSERT INTO colaboradores (name, id_area) VALUES (?, ?)', [name, id_area], function(err) {
         if (err) return res.status(500).json({ error: 'Error del servidor' });
-        res.json({ id: this.lastID, name });
+        res.json({ id: this.lastID, name, id_area });
     });
 });
 
@@ -506,8 +510,9 @@ app.put('/api/config/colaboradores/:id', requireAdmin, (req, res) => {
     if (!name || name.length < 2 || name.length > 100) {
         return res.status(400).json({ error: 'Nombre inválido (2-100 caracteres)' });
     }
+    const id_area = req.body.id_area ? validateId(req.body.id_area) : null;
 
-    db.run('UPDATE colaboradores SET name = ? WHERE id = ?', [name, id], (err) => {
+    db.run('UPDATE colaboradores SET name = ?, id_area = ? WHERE id = ?', [name, id_area, id], (err) => {
         if (err) return res.status(500).json({ error: 'Error del servidor' });
         res.json({ message: 'Actualizado correctamente' });
     });
@@ -538,6 +543,17 @@ app.post('/api/config/colaboradores/bulk-delete', requireAdmin, (req, res) => {
     db.run(`DELETE FROM colaboradores WHERE id IN (${placeholders})`, validIds, (err) => {
         if (err) return res.status(500).json({ error: 'Error del servidor' });
         res.json({ message: `Eliminados ${validIds.length} registros` });
+    });
+});
+
+// Get colaboradores by area (for new planning)
+app.get('/api/config/colaboradores/by-area/:areaId', requireAuth, (req, res) => {
+    const areaId = validateId(req.params.areaId);
+    if (!areaId) return res.status(400).json({ error: 'ID de área inválido' });
+
+    db.all('SELECT * FROM colaboradores WHERE id_area = ? ORDER BY name', [areaId], (err, rows) => {
+        if (err) return res.status(500).json({ error: 'Error del servidor' });
+        res.json(rows);
     });
 });
 
