@@ -1306,15 +1306,16 @@ const app = {
                 areaCollaborators.forEach(c => uniqueCollaborators.add(c.id));
                 collaboratorIds.push(...Array.from(uniqueCollaborators));
 
-                // Find vacation client for this area (client with tipo "Otro" and name containing "Vacacion" for this area)
+                // Find vacation client for this area (client with id_proyecto=4 "Vacaciones" for this area)
                 const vacationClient = this.state.clientes.find(c =>
-                    c.id_area === id_area &&
-                    (c.name.toLowerCase().includes('vacacion') || c.name.toLowerCase().includes('feriado'))
+                    c.id_area === id_area && c.id_proyecto === 4
                 );
 
                 if (vacationClient) {
-                    // Use the vacation client id instead of 10
+                    // Use the vacation client id instead of default
                     this._vacationClientId = vacationClient.id;
+                } else {
+                    console.warn('[NewPlanning] No se encontró cliente de vacaciones (id_proyecto=4) para el área:', id_area);
                 }
             }
 
