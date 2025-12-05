@@ -41,7 +41,20 @@ app.use(helmet({
             connectSrc: ["'self'", "https://cdn.jsdelivr.net"]
         }
     },
-    crossOriginEmbedderPolicy: false
+    crossOriginEmbedderPolicy: false,
+    // Permissions Policy - restrict browser features
+    permissionsPolicy: {
+        features: {
+            geolocation: [],
+            camera: [],
+            microphone: [],
+            payment: [],
+            usb: [],
+            magnetometer: [],
+            gyroscope: [],
+            accelerometer: []
+        }
+    }
 }));
 
 // CORS - Configuration for production and development
