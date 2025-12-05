@@ -717,7 +717,7 @@ const app = {
             }
 
             // Refresh planning grid
-            await app.loadPlanningData();
+            await app.loadPlanning();
             alert(`Se copiaron ${prevDayAllocations.length} asignación(es) exitosamente.`);
 
         } catch (error) {
