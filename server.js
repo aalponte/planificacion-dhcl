@@ -1261,7 +1261,7 @@ app.get('/api/dashboard/analytics', requireAuth, async (req, res) => {
             `SELECT SUM(hours) as total_hours FROM allocations a WHERE date BETWEEN ? AND ?${areaFilter}`,
             baseParams
         );
-        analytics.kpis.totalHours = Math.round(totalHoursResult?.total_hours || 0);
+        analytics.kpis.totalHours = parseFloat((totalHoursResult?.total_hours || 0).toFixed(1));
 
         const activeProjectsResult = await dbGet(
             `SELECT COUNT(DISTINCT a.cliente_id) as active_projects
@@ -1313,7 +1313,7 @@ app.get('/api/dashboard/analytics', requireAuth, async (req, res) => {
              AND c.name IN ('DEV/DCM', 'DEV', 'DCM')${areaFilter}`,
             baseParams
         );
-        analytics.kpis.trainingHours = Math.round(trainingHoursResult?.training_hours || 0);
+        analytics.kpis.trainingHours = parseFloat((trainingHoursResult?.training_hours || 0).toFixed(1));
 
         const projectTypeRows = await dbAll(
             `SELECT tp.name as type, SUM(a.hours) as hours
@@ -1329,7 +1329,7 @@ app.get('/api/dashboard/analytics', requireAuth, async (req, res) => {
         const totalHours = projectTypeRows.reduce((sum, row) => sum + (row.hours || 0), 0);
         analytics.projectTypeDistribution = projectTypeRows.map(row => ({
             type: row.type,
-            hours: Math.round(row.hours || 0),
+            hours: parseFloat((row.hours || 0).toFixed(1)),
             percentage: totalHours > 0 ? ((row.hours / totalHours) * 100).toFixed(1) : 0
         }));
 
@@ -1360,7 +1360,7 @@ app.get('/api/dashboard/analytics', requireAuth, async (req, res) => {
             collaboratorMap[row.collaborator].projects.push({
                 client: row.client,
                 type: row.type,
-                hours: Math.round(row.hours || 0)
+                hours: parseFloat((row.hours || 0).toFixed(1))
             });
         });
 
