@@ -1451,18 +1451,26 @@ const app = {
     async deleteWeekPlanning() {
         const year = parseInt(document.getElementById('plan-year').value);
         const week = parseInt(document.getElementById('plan-week').value);
+        const id_area = document.getElementById('plan-area')?.value;
+        const areaName = document.getElementById('plan-area')?.selectedOptions[0]?.text || 'área seleccionada';
 
-        if (!confirm(`⚠️ ¿Eliminar TODA la planificación de la semana ${week}/${year}?\n\nEsto eliminará las asignaciones de TODOS los colaboradores.\n\n¡Esta acción NO se puede deshacer!`)) {
+        if (!confirm(`⚠️ ¿Eliminar TODA la planificación de la semana ${week}/${year} para ${areaName}?\n\nEsto eliminará las asignaciones de TODOS los colaboradores de esta área.\n\n¡Esta acción NO se puede deshacer!`)) {
             return;
         }
 
         // Double confirmation for safety
-        if (!confirm(`¿Estás COMPLETAMENTE SEGURO de eliminar toda la semana ${week}/${year}?`)) {
+        if (!confirm(`¿Estás COMPLETAMENTE SEGURO de eliminar toda la semana ${week}/${year} para ${areaName}?`)) {
             return;
         }
 
         try {
-            const response = await fetch(`/api/allocations/week/${year}/${week}`, {
+            // Include area filter in URL
+            let url = `/api/allocations/week/${year}/${week}`;
+            if (id_area) {
+                url += `?id_area=${id_area}`;
+            }
+
+            const response = await fetch(url, {
                 method: 'DELETE',
                 credentials: 'include'
             });

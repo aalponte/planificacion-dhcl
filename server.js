@@ -1212,15 +1212,22 @@ app.delete('/api/allocations/collaborator/:colaborador_id/week/:year/:week', req
 app.delete('/api/allocations/week/:year/:week', requireAdmin, (req, res) => {
     const year = validateYear(req.params.year);
     const week = validateWeek(req.params.week);
+    const id_area = req.query.id_area ? validateId(req.query.id_area) : null;
 
     if (!year || !week) {
         return res.status(400).json({ error: 'Datos inválidos' });
     }
 
-    db.run(
-        'DELETE FROM allocations WHERE year = ? AND week_number = ?',
-        [year, week],
-        function(err) {
+    // Build query with optional area filter
+    let sql = 'DELETE FROM allocations WHERE year = ? AND week_number = ?';
+    const params = [year, week];
+
+    if (id_area) {
+        sql += ' AND id_area = ?';
+        params.push(id_area);
+    }
+
+    db.run(sql, params, function(err) {
             if (err) return res.status(500).json({ error: 'Error del servidor' });
             res.json({
                 message: `Eliminada toda la planificación (${this.changes} asignaciones)`,
