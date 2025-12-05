@@ -1096,14 +1096,7 @@ const app = {
         document.getElementById('alloc-date').value = dateStr || '';
         const clienteSelect = document.getElementById('alloc-cliente');
         clienteSelect.innerHTML = '<option value="">-- Seleccionar Cliente --</option>';
-
-        // Filter clients by the currently selected area
-        const selectedAreaId = document.getElementById('plan-area')?.value;
-        const filteredClientes = selectedAreaId
-            ? this.state.clientes.filter(c => parseInt(c.id_area) === parseInt(selectedAreaId))
-            : this.state.clientes;
-
-        filteredClientes.forEach(c => { clienteSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`; });
+        this.state.clientes.forEach(c => { clienteSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`; });
         document.getElementById('btn-delete-alloc').classList.toggle('hidden', !id);
         if (id) {
             const alloc = this.state.currentAllocations.find(a => a.id === id);
