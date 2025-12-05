@@ -10,7 +10,7 @@
         rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=41">
+    <link rel="stylesheet" href="style.css?v=40">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 </head>
@@ -69,18 +69,14 @@
 
                 <!-- Date Range Selector -->
                 <div class="section-card">
-                    <div class="date-range-selector" style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0; white-space: nowrap;">Área</label>
-                            <select id="dash-area" class="form-control" style="width: 160px;" onchange="app.updateDashboard()"></select>
+                    <div class="date-range-selector">
+                        <div class="date-input-group">
+                            <label>Fecha Inicio</label>
+                            <input type="date" id="dash-start-date" class="form-control">
                         </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0; white-space: nowrap;">Fecha Inicio</label>
-                            <input type="date" id="dash-start-date" class="form-control" style="width: 150px;">
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0; white-space: nowrap;">Fecha Fin</label>
-                            <input type="date" id="dash-end-date" class="form-control" style="width: 150px;">
+                        <div class="date-input-group">
+                            <label>Fecha Fin</label>
+                            <input type="date" id="dash-end-date" class="form-control">
                         </div>
                         <button onclick="app.updateDashboard()" class="btn btn-primary">Actualizar</button>
                     </div>
@@ -142,22 +138,11 @@
                     <p class="section-subtitle">Consulta de asignaciones por semana (solo lectura)</p>
                 </div>
                 <div class="section-card" style="margin-bottom: 24px;">
-                    <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0; white-space: nowrap;">Área</label>
-                            <select id="viewer-area" class="form-control" style="width: 160px;"
-                                onchange="app.loadViewer()"></select>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0; white-space: nowrap;">Año</label>
-                            <select id="viewer-year" class="form-control" style="width: 100px;"
-                                onchange="app.loadViewer()"></select>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0; white-space: nowrap;">Semana</label>
-                            <select id="viewer-week" class="form-control" style="width: 140px;"
-                                onchange="app.loadViewer()"></select>
-                        </div>
+                    <div style="display: flex; gap: 16px;">
+                        <select id="viewer-year" class="form-control" style="width: 120px;"
+                            onchange="app.loadViewer()"></select>
+                        <select id="viewer-week" class="form-control" style="width: 200px;"
+                            onchange="app.loadViewer()"></select>
                     </div>
                 </div>
                 <div class="section-card planning-grid-wrapper">
@@ -181,29 +166,25 @@
                     <p class="section-subtitle">Consulta y gestiona asignaciones por semana</p>
                 </div>
                 <div class="section-card" style="margin-bottom: 24px;">
-                    <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0; white-space: nowrap;">Área</label>
-                            <select id="plan-area" class="form-control" style="width: 150px;"
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                        <div style="display: flex; gap: 16px;">
+                            <select id="plan-year" class="form-control" style="width: 120px;"
+                                onchange="app.loadPlanning()"></select>
+                            <select id="plan-week" class="form-control" style="width: 200px;"
                                 onchange="app.loadPlanning()"></select>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0; white-space: nowrap;">Año</label>
-                            <select id="plan-year" class="form-control" style="width: 100px;"
-                                onchange="app.loadPlanning()"></select>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0; white-space: nowrap;">Semana</label>
-                            <select id="plan-week" class="form-control" style="width: 130px;"
-                                onchange="app.loadPlanning()"></select>
-                        </div>
-                        <div style="display: flex; gap: 10px; margin-left: auto;">
+                        <div style="display: flex; gap: 12px;">
                             <button onclick="app.copyPreviousWeek()" class="btn btn-secondary"><i
-                                    class="fas fa-copy"></i> Copiar Semana</button>
+                                    class="fas fa-copy"></i>
+                                Copiar Semana Anterior</button>
                             <button onclick="app.deleteWeekPlanning()" class="btn btn-danger"
-                                style="background-color: #dc3545; color: white;"><i class="fas fa-trash"></i> Eliminar Semana</button>
+                                style="background-color: #dc3545; color: white;"><i class="fas fa-trash"></i>
+                                Eliminar
+                                Semana</button>
                             <button onclick="app.createNewPlanning()" class="btn btn-primary"><i
-                                    class="fas fa-plus"></i> Nueva Planificación</button>
+                                    class="fas fa-plus"></i>
+                                Nueva Planificación</button>
                         </div>
                     </div>
                 </div>
@@ -235,7 +216,6 @@
                     <button class="view-tab" onclick="app.switchConfigTab('proyectos')"
                         id="tab-proyectos">Proyectos</button>
                     <button class="view-tab" onclick="app.switchConfigTab('tipos')" id="tab-tipos">Tipo de Proyecto</button>
-                    <button class="view-tab" onclick="app.switchConfigTab('areas')" id="tab-areas">Áreas</button>
                     <button class="view-tab" onclick="app.switchConfigTab('usuarios')" id="tab-usuarios">Usuarios</button>
                 </div>
 
@@ -287,7 +267,6 @@
                                 <th>Cliente</th>
                                 <th>Proyecto</th>
                                 <th>Tipo</th>
-                                <th>Área</th>
                                 <th style="width: 150px; text-align: right;">Acciones</th>
                             </tr>
                         </thead>
@@ -347,28 +326,6 @@
                         <tbody id="table-tipos"></tbody>
                     </table>
                 </div>
-                <!-- Config: Áreas -->
-                <div id="config-areas" class="config-tab-content section-card hidden">
-                    <div class="config-actions">
-                        <button class="btn btn-primary" onclick="app.openAddModal('areas')"><i class="fas fa-plus"></i>
-                            Añadir</button>
-                        <button class="btn btn-secondary" onclick="app.deleteSelected('areas')"><i
-                                class="fas fa-trash"></i>
-                            Eliminar Seleccionados</button>
-                    </div>
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th style="width: 50px;"><input type="checkbox" class="select-all"
-                                        onchange="app.toggleSelectAll('areas', this.checked)"></th>
-                                <th style="width: 80px;">ID</th>
-                                <th>Nombre</th>
-                                <th style="width: 150px; text-align: right;">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="table-areas"></tbody>
-                    </table>
-                </div>
                 <!-- Config: Usuarios -->
                 <div id="config-usuarios" class="config-tab-content section-card hidden">
                     <div class="config-actions">
@@ -383,7 +340,6 @@
                                 <th>Usuario</th>
                                 <th>Nombre</th>
                                 <th>Rol</th>
-                                <th>Área</th>
                                 <th style="width: 150px; text-align: right;">Acciones</th>
                             </tr>
                         </thead>
@@ -417,12 +373,6 @@
                             <div class="form-group">
                                 <label>Tipo de Proyecto</label>
                                 <select id="record-tipo" class="form-control">
-                                    <option value="">-- Seleccionar --</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Área</label>
-                                <select id="record-area" class="form-control">
                                     <option value="">-- Seleccionar --</option>
                                 </select>
                             </div>
@@ -521,12 +471,6 @@
                                 <option value="visualizador">Visualizador</option>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label>Área</label>
-                            <select id="user-area" class="form-control">
-                                <option value="">-- Sin área asignada (acceso a todas) --</option>
-                            </select>
-                        </div>
                     </form>
                 </div>
                 <div class="modal-footer">
@@ -537,8 +481,8 @@
         </div>
 
 
-    <script src="app.js?v=33"></script>
-    <script src="dashboard.js?v=33"></script>
+    <script src="app.js?v=28"></script>
+    <script src="dashboard.js?v=28"></script>
 </body>
 
 </html>

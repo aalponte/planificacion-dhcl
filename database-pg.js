@@ -1,6 +1,4 @@
 const { Pool } = require('pg');
-const fs = require('fs');
-const path = require('path');
 
 // PostgreSQL connection using environment variable
 const pool = new Pool({
@@ -14,10 +12,23 @@ function convertPlaceholders(sql) {
     return sql.replace(/\?/g, () => `$${++index}`);
 }
 
-// Schema for PostgreSQL
+// Schema for PostgreSQL - Complete with areas and id_area columns
 const schema = `
+-- ============================================
 -- Database Schema for Resource Planning Application
 -- LLYC Configuration Tables (PostgreSQL version)
+-- ============================================
+
+-- 0. Areas (Business Units - Master)
+CREATE TABLE IF NOT EXISTS areas (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert default areas
+INSERT INTO areas (name) VALUES ('Data Hub') ON CONFLICT (name) DO NOTHING;
+INSERT INTO areas (name) VALUES ('Channel Lab') ON CONFLICT (name) DO NOTHING;
 
 -- 1. Colaboradores (Workers)
 CREATE TABLE IF NOT EXISTS colaboradores (
@@ -46,6 +57,7 @@ CREATE TABLE IF NOT EXISTS clientes (
     name TEXT NOT NULL UNIQUE,
     id_proyecto INTEGER REFERENCES proyectos(id) ON DELETE SET NULL,
     id_tipo_proyecto INTEGER REFERENCES tipo_proyecto(id) ON DELETE SET NULL,
+    id_area INTEGER REFERENCES areas(id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -58,6 +70,7 @@ CREATE TABLE IF NOT EXISTS allocations (
     hours REAL NOT NULL DEFAULT 0,
     week_number INTEGER NOT NULL,
     year INTEGER NOT NULL,
+    id_area INTEGER REFERENCES areas(id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(colaborador_id, cliente_id, date)
 );
@@ -69,19 +82,27 @@ CREATE TABLE IF NOT EXISTS usuarios (
     password TEXT NOT NULL,
     role TEXT NOT NULL CHECK(role IN ('administrador', 'visualizador')),
     name TEXT,
+    id_area INTEGER REFERENCES areas(id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ============================================
 -- Indexes for Performance
+-- ============================================
 CREATE INDEX IF NOT EXISTS idx_allocations_week ON allocations(year, week_number);
 CREATE INDEX IF NOT EXISTS idx_allocations_colaborador ON allocations(colaborador_id);
 CREATE INDEX IF NOT EXISTS idx_allocations_cliente ON allocations(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_allocations_area ON allocations(id_area);
 CREATE INDEX IF NOT EXISTS idx_clientes_proyecto ON clientes(id_proyecto);
 CREATE INDEX IF NOT EXISTS idx_clientes_tipo ON clientes(id_tipo_proyecto);
+CREATE INDEX IF NOT EXISTS idx_clientes_area ON clientes(id_area);
+CREATE INDEX IF NOT EXISTS idx_usuarios_area ON usuarios(id_area);
 
--- Insert default admin user if not exists
+-- Insert default admin user with bcrypt hashed password (admin123)
+-- The password below is bcrypt hash of 'admin123' with cost factor 12
+-- IMPORTANT: Change this password immediately after first login!
 INSERT INTO usuarios (username, password, role, name)
-VALUES ('admin', 'admin123', 'administrador', 'Administrador')
+VALUES ('admin', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.G5e1Q3x0jY1W6i', 'administrador', 'Administrador')
 ON CONFLICT (username) DO NOTHING;
 `;
 
@@ -91,6 +112,7 @@ async function initializeDatabase() {
         console.log('PostgreSQL database schema initialized successfully');
     } catch (err) {
         console.error('Error initializing PostgreSQL database schema:', err);
+        throw err;
     }
 }
 
@@ -162,7 +184,15 @@ const db = {
     },
 
     // Initialize the database
-    initialize: initializeDatabase
+    initialize: initializeDatabase,
+
+    // Close pool (for graceful shutdown)
+    close: () => {
+        return pool.end();
+    },
+
+    // Get raw pool for advanced usage
+    pool: pool
 };
 
 module.exports = db;

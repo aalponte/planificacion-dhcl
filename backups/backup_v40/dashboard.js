@@ -24,16 +24,8 @@ function initDashboard() {
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
 
-    // Format dates as YYYY-MM-DD to avoid timezone issues
-    const formatDate = (date) => {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    };
-
-    document.getElementById('dash-start-date').value = formatDate(monday);
-    document.getElementById('dash-end-date').value = formatDate(sunday);
+    document.getElementById('dash-start-date').valueAsDate = monday;
+    document.getElementById('dash-end-date').valueAsDate = sunday;
 
     updateDashboard();
 }
@@ -42,8 +34,6 @@ function initDashboard() {
 async function updateDashboard() {
     const startDate = document.getElementById('dash-start-date').value;
     const endDate = document.getElementById('dash-end-date').value;
-    const areaSelect = document.getElementById('dash-area');
-    const id_area = areaSelect && areaSelect.value ? areaSelect.value : (app?.state?.selectedAreaId || null);
 
     if (!startDate || !endDate) {
         alert('Por favor selecciona un rango de fechas válido');
@@ -51,9 +41,7 @@ async function updateDashboard() {
     }
 
     try {
-        let url = `/api/dashboard/analytics?startDate=${startDate}&endDate=${endDate}`;
-        if (id_area) url += `&id_area=${id_area}`;
-        const response = await fetch(url, {
+        const response = await fetch(`/api/dashboard/analytics?startDate=${startDate}&endDate=${endDate}`, {
             credentials: 'include'
         });
 
@@ -171,12 +159,8 @@ function renderProjectTypeChart(data) {
                         // Re-fetch and show all data
                         const startDate = document.getElementById('dash-start-date').value;
                         const endDate = document.getElementById('dash-end-date').value;
-                        const areaSelect = document.getElementById('dash-area');
-                        const id_area = areaSelect && areaSelect.value ? areaSelect.value : (app?.state?.selectedAreaId || null);
 
-                        let url = `/api/dashboard/analytics?startDate=${startDate}&endDate=${endDate}`;
-                        if (id_area) url += `&id_area=${id_area}`;
-                        fetch(url, {
+                        fetch(`/api/dashboard/analytics?startDate=${startDate}&endDate=${endDate}`, {
                             credentials: 'include'
                         })
                             .then(res => res.json())
@@ -193,12 +177,8 @@ function renderProjectTypeChart(data) {
                         // Re-fetch data and update collaborator chart with filter
                         const startDate = document.getElementById('dash-start-date').value;
                         const endDate = document.getElementById('dash-end-date').value;
-                        const areaSelect = document.getElementById('dash-area');
-                        const id_area = areaSelect && areaSelect.value ? areaSelect.value : (app?.state?.selectedAreaId || null);
 
-                        let url = `/api/dashboard/analytics?startDate=${startDate}&endDate=${endDate}`;
-                        if (id_area) url += `&id_area=${id_area}`;
-                        fetch(url, {
+                        fetch(`/api/dashboard/analytics?startDate=${startDate}&endDate=${endDate}`, {
                             credentials: 'include'
                         })
                             .then(res => res.json())

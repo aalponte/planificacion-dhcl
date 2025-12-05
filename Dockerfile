@@ -1,26 +1,55 @@
-# Use official Node.js LTS image
-FROM node:20-alpine
+# ==============================================
+# Dockerfile for PlanificacionDH - Cloud Run
+# ==============================================
 
-# Set working directory
+# Build stage - install dependencies
+FROM node:20-alpine AS builder
+
 WORKDIR /app
 
-# Copy package files first (for better caching)
+# Copy package files
 COPY package*.json ./
 
-# Install only production dependencies
-RUN npm ci --only=production
+# Install dependencies (production only)
+RUN npm ci --only=production && npm cache clean --force
 
-# Copy application code
-COPY . .
+# ==============================================
+# Production stage - minimal image
+# ==============================================
+FROM node:20-alpine
 
-# Create uploads directory
-RUN mkdir -p uploads
+WORKDIR /app
 
-# Expose port (Cloud Run will set PORT env variable)
+# Create non-root user for security
+RUN addgroup -g 1001 -S nodejs \
+    && adduser -S nodejs -u 1001
+
+# Copy node_modules from builder
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy only necessary application files
+COPY package*.json ./
+COPY server.js ./
+COPY db.js ./
+COPY database-pg.js ./
+COPY public/ ./public/
+
+# Create uploads directory with correct permissions
+RUN mkdir -p uploads && chown -R nodejs:nodejs /app
+
+# Switch to non-root user
+USER nodejs
+
+# Cloud Run uses PORT env variable (default 8080)
+ENV NODE_ENV=production
+ENV PORT=8080
+
+# Expose port
 EXPOSE 8080
 
-# Set environment to production
-ENV NODE_ENV=production
+# Health check for container orchestration
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:' + (process.env.PORT || 8080) + '/api/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
 # Start the application
 CMD ["node", "server.js"]

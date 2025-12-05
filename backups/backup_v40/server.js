@@ -198,17 +198,6 @@ const validateDate = (dateStr) => {
     return !isNaN(date.getTime()) ? dateStr : null;
 };
 
-// Helper to enforce area access - returns the allowed area ID or null for all areas
-const getEnforcedAreaId = (req, requestedAreaId) => {
-    const userAreaId = req.session?.user?.id_area;
-    // If user has an assigned area, they can ONLY access that area
-    if (userAreaId) {
-        return userAreaId; // Force user's area regardless of what they requested
-    }
-    // If user has no assigned area (admin/global), allow requested area or null for all
-    return requestedAreaId || null;
-};
-
 // ============================================
 // Health check endpoint
 // ============================================
@@ -233,7 +222,7 @@ app.post('/api/auth/login', loginLimiter, (req, res) => {
         return res.status(400).json({ error: 'Datos de entrada inválidos' });
     }
 
-    db.get('SELECT id, username, password, role, name, id_area FROM usuarios WHERE username = ?',
+    db.get('SELECT id, username, password, role, name FROM usuarios WHERE username = ?',
         [username], async (err, user) => {
             if (err) {
                 console.error('[Login] Database error:', err);
@@ -257,8 +246,8 @@ app.post('/api/auth/login', loginLimiter, (req, res) => {
                         const hashedPassword = await bcrypt.hash(password, 12);
                         db.run('UPDATE usuarios SET password = ? WHERE id = ?',
                             [hashedPassword, user.id], (err) => {
-                                if (err) console.error('[Login] Failed to upgrade password hash');
-                                else console.log('[Login] Upgraded legacy password to bcrypt hash');
+                                if (err) console.error('[Login] Failed to upgrade password hash:', err);
+                                else console.log('[Login] Upgraded password hash for user:', username);
                             });
                     }
                 }
@@ -267,35 +256,22 @@ app.post('/api/auth/login', loginLimiter, (req, res) => {
                     return res.status(401).json({ error: 'Credenciales inválidas' });
                 }
 
-                // Regenerate session to prevent session fixation attacks
-                const userData = {
+                // Create session
+                req.session.user = {
                     id: user.id,
                     username: user.username,
                     role: user.role,
-                    name: user.name,
-                    id_area: user.id_area
+                    name: user.name
                 };
 
-                req.session.regenerate((err) => {
-                    if (err) {
-                        console.error('[Login] Session regeneration error:', err);
-                        return res.status(500).json({ error: 'Error del servidor' });
+                res.json({
+                    success: true,
+                    user: {
+                        id: user.id,
+                        username: user.username,
+                        role: user.role,
+                        name: user.name
                     }
-
-                    // Create session with user data
-                    req.session.user = userData;
-
-                    req.session.save((err) => {
-                        if (err) {
-                            console.error('[Login] Session save error:', err);
-                            return res.status(500).json({ error: 'Error del servidor' });
-                        }
-
-                        res.json({
-                            success: true,
-                            user: userData
-                        });
-                    });
                 });
             } catch (error) {
                 console.error('[Login] Error:', error);
@@ -329,14 +305,7 @@ app.get('/api/auth/check', (req, res) => {
 // ============================================
 
 app.get('/api/config/usuarios', requireAdmin, (req, res) => {
-    const sql = `
-        SELECT u.id, u.username, u.role, u.name, u.id_area, u.created_at,
-               a.name as area_name
-        FROM usuarios u
-        LEFT JOIN areas a ON u.id_area = a.id
-        ORDER BY u.name
-    `;
-    db.all(sql, (err, rows) => {
+    db.all('SELECT id, username, role, name, created_at FROM usuarios ORDER BY name', (err, rows) => {
         if (err) return res.status(500).json({ error: 'Error del servidor' });
         res.json(rows);
     });
@@ -347,7 +316,6 @@ app.post('/api/config/usuarios', requireAdmin, async (req, res) => {
     const password = req.body.password;
     const role = sanitizeString(req.body.role);
     const name = sanitizeString(req.body.name);
-    const id_area = validateId(req.body.id_area);
 
     if (!username || !password || !role) {
         return res.status(400).json({ error: 'Usuario, contraseña y rol son requeridos' });
@@ -367,15 +335,15 @@ app.post('/api/config/usuarios', requireAdmin, async (req, res) => {
 
     try {
         const hashedPassword = await bcrypt.hash(password, 12);
-        db.run('INSERT INTO usuarios (username, password, role, name, id_area) VALUES (?, ?, ?, ?, ?)',
-            [username, hashedPassword, role, name || username, id_area], function(err) {
+        db.run('INSERT INTO usuarios (username, password, role, name) VALUES (?, ?, ?, ?)',
+            [username, hashedPassword, role, name || username], function(err) {
                 if (err) {
                     if (err.message.includes('UNIQUE')) {
                         return res.status(400).json({ error: 'El usuario ya existe' });
                     }
                     return res.status(500).json({ error: 'Error del servidor' });
                 }
-                res.json({ id: this.lastID, username, role, name: name || username, id_area });
+                res.json({ id: this.lastID, username, role, name: name || username });
             });
     } catch (error) {
         res.status(500).json({ error: 'Error del servidor' });
@@ -390,7 +358,6 @@ app.put('/api/config/usuarios/:id', requireAdmin, async (req, res) => {
     const password = req.body.password;
     const role = sanitizeString(req.body.role);
     const name = sanitizeString(req.body.name);
-    const id_area = req.body.id_area === null || req.body.id_area === '' ? null : validateId(req.body.id_area);
 
     if (!username || !role) {
         return res.status(400).json({ error: 'Usuario y rol son requeridos' });
@@ -407,11 +374,11 @@ app.put('/api/config/usuarios/:id', requireAdmin, async (req, res) => {
                 return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
             }
             const hashedPassword = await bcrypt.hash(password, 12);
-            sql = 'UPDATE usuarios SET username = ?, password = ?, role = ?, name = ?, id_area = ? WHERE id = ?';
-            params = [username, hashedPassword, role, name || username, id_area, id];
+            sql = 'UPDATE usuarios SET username = ?, password = ?, role = ?, name = ? WHERE id = ?';
+            params = [username, hashedPassword, role, name || username, id];
         } else {
-            sql = 'UPDATE usuarios SET username = ?, role = ?, name = ?, id_area = ? WHERE id = ?';
-            params = [username, role, name || username, id_area, id];
+            sql = 'UPDATE usuarios SET username = ?, role = ?, name = ? WHERE id = ?';
+            params = [username, role, name || username, id];
         }
 
         db.run(sql, params, function(err) {
@@ -654,100 +621,22 @@ app.post('/api/config/tipos/bulk-delete', requireAdmin, (req, res) => {
     });
 });
 
-// ÁREAS
-app.get('/api/config/areas', requireAuth, (req, res) => {
-    db.all('SELECT * FROM areas ORDER BY name', (err, rows) => {
-        if (err) return res.status(500).json({ error: 'Error del servidor' });
-        res.json(rows);
-    });
-});
-
-app.post('/api/config/areas', requireAdmin, (req, res) => {
-    const name = sanitizeString(req.body.name);
-    if (!name || name.length < 2 || name.length > 100) {
-        return res.status(400).json({ error: 'Nombre inválido (2-100 caracteres)' });
-    }
-
-    db.run('INSERT INTO areas (name) VALUES (?)', [name], function(err) {
-        if (err) {
-            if (err.message.includes('UNIQUE')) {
-                return res.status(400).json({ error: 'El área ya existe' });
-            }
-            return res.status(500).json({ error: 'Error del servidor' });
-        }
-        res.json({ id: this.lastID, name });
-    });
-});
-
-app.put('/api/config/areas/:id', requireAdmin, (req, res) => {
-    const id = validateId(req.params.id);
-    if (!id) return res.status(400).json({ error: 'ID inválido' });
-
-    const name = sanitizeString(req.body.name);
-    if (!name || name.length < 2 || name.length > 100) {
-        return res.status(400).json({ error: 'Nombre inválido (2-100 caracteres)' });
-    }
-
-    db.run('UPDATE areas SET name = ? WHERE id = ?', [name, id], (err) => {
-        if (err) return res.status(500).json({ error: 'Error del servidor' });
-        res.json({ message: 'Actualizado correctamente' });
-    });
-});
-
-app.delete('/api/config/areas/:id', requireAdmin, (req, res) => {
-    const id = validateId(req.params.id);
-    if (!id) return res.status(400).json({ error: 'ID inválido' });
-
-    db.run('DELETE FROM areas WHERE id = ?', [id], (err) => {
-        if (err) return res.status(500).json({ error: 'Error del servidor' });
-        res.json({ message: 'Eliminado correctamente' });
-    });
-});
-
-app.post('/api/config/areas/bulk-delete', requireAdmin, (req, res) => {
-    const { ids } = req.body;
-    if (!Array.isArray(ids) || ids.length === 0) {
-        return res.status(400).json({ error: 'IDs inválidos' });
-    }
-
-    const validIds = ids.map(validateId).filter(id => id !== null);
-    if (validIds.length === 0) {
-        return res.status(400).json({ error: 'IDs inválidos' });
-    }
-
-    const placeholders = validIds.map(() => '?').join(',');
-    db.run(`DELETE FROM areas WHERE id IN (${placeholders})`, validIds, (err) => {
-        if (err) return res.status(500).json({ error: 'Error del servidor' });
-        res.json({ message: `Eliminados ${validIds.length} registros` });
-    });
-});
-
 // CLIENTES
 app.get('/api/config/clientes', requireAuth, (req, res) => {
-    // Enforce area access based on user's assigned area
-    const id_area = getEnforcedAreaId(req, validateId(req.query.id_area));
-    let sql = `
+    const sql = `
         SELECT
             c.id,
             c.name,
             c.id_proyecto as proyecto_id,
             c.id_tipo_proyecto as tipo_id,
-            c.id_area,
             p.name as proyecto_name,
-            t.name as tipo_name,
-            a.name as area_name
+            t.name as tipo_name
         FROM clientes c
         LEFT JOIN proyectos p ON c.id_proyecto = p.id
         LEFT JOIN tipo_proyecto t ON c.id_tipo_proyecto = t.id
-        LEFT JOIN areas a ON c.id_area = a.id
+        ORDER BY c.name
     `;
-    const params = [];
-    if (id_area) {
-        sql += ' WHERE c.id_area = ?';
-        params.push(id_area);
-    }
-    sql += ' ORDER BY c.name';
-    db.all(sql, params, (err, rows) => {
+    db.all(sql, (err, rows) => {
         if (err) return res.status(500).json({ error: 'Error del servidor' });
         res.json(rows);
     });
@@ -757,18 +646,17 @@ app.post('/api/config/clientes', requireAdmin, (req, res) => {
     const name = sanitizeString(req.body.name);
     const id_proyecto = validateId(req.body.id_proyecto);
     const id_tipo_proyecto = validateId(req.body.id_tipo_proyecto);
-    const id_area = validateId(req.body.id_area);
 
     if (!name || name.length < 2 || name.length > 100) {
         return res.status(400).json({ error: 'Nombre inválido (2-100 caracteres)' });
     }
 
     db.run(
-        'INSERT INTO clientes (name, id_proyecto, id_tipo_proyecto, id_area) VALUES (?, ?, ?, ?)',
-        [name, id_proyecto, id_tipo_proyecto, id_area],
+        'INSERT INTO clientes (name, id_proyecto, id_tipo_proyecto) VALUES (?, ?, ?)',
+        [name, id_proyecto, id_tipo_proyecto],
         function(err) {
             if (err) return res.status(500).json({ error: 'Error del servidor' });
-            res.json({ id: this.lastID, name, id_proyecto, id_tipo_proyecto, id_area });
+            res.json({ id: this.lastID, name, id_proyecto, id_tipo_proyecto });
         }
     );
 });
@@ -780,15 +668,14 @@ app.put('/api/config/clientes/:id', requireAdmin, (req, res) => {
     const name = sanitizeString(req.body.name);
     const id_proyecto = validateId(req.body.id_proyecto);
     const id_tipo_proyecto = validateId(req.body.id_tipo_proyecto);
-    const id_area = req.body.id_area === null || req.body.id_area === '' ? null : validateId(req.body.id_area);
 
     if (!name || name.length < 2 || name.length > 100) {
         return res.status(400).json({ error: 'Nombre inválido (2-100 caracteres)' });
     }
 
     db.run(
-        'UPDATE clientes SET name = ?, id_proyecto = ?, id_tipo_proyecto = ?, id_area = ? WHERE id = ?',
-        [name, id_proyecto, id_tipo_proyecto, id_area, id],
+        'UPDATE clientes SET name = ?, id_proyecto = ?, id_tipo_proyecto = ? WHERE id = ?',
+        [name, id_proyecto, id_tipo_proyecto, id],
         (err) => {
             if (err) return res.status(500).json({ error: 'Error del servidor' });
             res.json({ message: 'Actualizado correctamente' });
@@ -956,39 +843,27 @@ app.post('/api/config/tipos/import', requireAdmin, upload.single('file'), handle
 app.get('/api/allocations', requireAuth, (req, res) => {
     const year = validateYear(req.query.year);
     const week = validateWeek(req.query.week);
-    // Enforce area access based on user's assigned area
-    const id_area = getEnforcedAreaId(req, validateId(req.query.id_area));
 
     if (!year || !week) {
         return res.status(400).json({ error: 'Año y semana son requeridos' });
     }
 
-    let sql = `
+    const sql = `
         SELECT
             a.*,
             c.name as colaborador_name,
             cl.name as cliente_name,
             p.name as proyecto_name,
-            t.name as tipo_name,
-            ar.name as area_name
+            t.name as tipo_name
         FROM allocations a
         JOIN colaboradores c ON a.colaborador_id = c.id
         JOIN clientes cl ON a.cliente_id = cl.id
         LEFT JOIN proyectos p ON cl.id_proyecto = p.id
         LEFT JOIN tipo_proyecto t ON cl.id_tipo_proyecto = t.id
-        LEFT JOIN areas ar ON a.id_area = ar.id
         WHERE a.year = ? AND a.week_number = ?
+        ORDER BY c.name, a.date
     `;
-    const params = [year, week];
-
-    if (id_area) {
-        sql += ' AND a.id_area = ?';
-        params.push(id_area);
-    }
-
-    sql += ' ORDER BY c.name, a.date';
-
-    db.all(sql, params, (err, rows) => {
+    db.all(sql, [year, week], (err, rows) => {
         if (err) return res.status(500).json({ error: 'Error del servidor' });
         res.json(rows);
     });
@@ -1013,16 +888,15 @@ app.post('/api/allocations', requireAdmin, (req, res) => {
     const hours = validateHours(req.body.hours);
     const week_number = validateWeek(req.body.week_number);
     const year = validateYear(req.body.year);
-    const id_area = validateId(req.body.id_area);
 
     if (!colaborador_id || !cliente_id || !date || hours === null || !week_number || !year) {
         return res.status(400).json({ error: 'Datos inválidos o incompletos' });
     }
 
     db.run(
-        `INSERT INTO allocations (colaborador_id, cliente_id, date, hours, week_number, year, id_area)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [colaborador_id, cliente_id, date, hours, week_number, year, id_area],
+        `INSERT INTO allocations (colaborador_id, cliente_id, date, hours, week_number, year)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [colaborador_id, cliente_id, date, hours, week_number, year],
         function(err) {
             if (err) return res.status(500).json({ error: 'Error del servidor' });
             res.json({ message: 'Asignación creada', id: this.lastID });
@@ -1040,7 +914,6 @@ app.put('/api/allocations/:id', requireAdmin, (req, res) => {
     const hours = validateHours(req.body.hours);
     const week_number = validateWeek(req.body.week_number);
     const year = validateYear(req.body.year);
-    const id_area = req.body.id_area === null || req.body.id_area === '' ? null : validateId(req.body.id_area);
 
     if (!colaborador_id || !cliente_id || !date || hours === null || !week_number || !year) {
         return res.status(400).json({ error: 'Datos inválidos o incompletos' });
@@ -1048,9 +921,9 @@ app.put('/api/allocations/:id', requireAdmin, (req, res) => {
 
     db.run(
         `UPDATE allocations
-         SET colaborador_id = ?, cliente_id = ?, date = ?, hours = ?, week_number = ?, year = ?, id_area = ?
+         SET colaborador_id = ?, cliente_id = ?, date = ?, hours = ?, week_number = ?, year = ?
          WHERE id = ?`,
-        [colaborador_id, cliente_id, date, hours, week_number, year, id_area, id],
+        [colaborador_id, cliente_id, date, hours, week_number, year, id],
         function(err) {
             if (err) return res.status(500).json({ error: 'Error del servidor' });
             if (this.changes === 0) {
@@ -1066,25 +939,19 @@ app.post('/api/allocations/copy', requireAdmin, (req, res) => {
     const fromWeek = validateWeek(req.body.fromWeek);
     const toYear = validateYear(req.body.toYear);
     const toWeek = validateWeek(req.body.toWeek);
-    const id_area = validateId(req.body.id_area);
 
     if (!fromYear || !fromWeek || !toYear || !toWeek) {
         return res.status(400).json({ error: 'Datos inválidos' });
     }
 
-    let selectSql = `
-        SELECT colaborador_id, cliente_id, date, hours, id_area
+    const selectSql = `
+        SELECT colaborador_id, cliente_id, date, hours
         FROM allocations
         WHERE year = ? AND week_number = ?
+        ORDER BY date, colaborador_id
     `;
-    const selectParams = [fromYear, fromWeek];
-    if (id_area) {
-        selectSql += ' AND id_area = ?';
-        selectParams.push(id_area);
-    }
-    selectSql += ' ORDER BY date, colaborador_id';
 
-    db.all(selectSql, selectParams, (err, sourceAllocations) => {
+    db.all(selectSql, [fromYear, fromWeek], (err, sourceAllocations) => {
         if (err) {
             return res.status(500).json({ error: 'Error del servidor' });
         }
@@ -1119,8 +986,8 @@ app.post('/api/allocations/copy', requireAdmin, (req, res) => {
             const dateStr = targetDate.toISOString().split('T')[0];
 
             db.run(
-                `INSERT INTO allocations (colaborador_id, cliente_id, date, hours, week_number, year, id_area) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [alloc.colaborador_id, alloc.cliente_id, dateStr, alloc.hours, toWeek, toYear, alloc.id_area],
+                `INSERT INTO allocations (colaborador_id, cliente_id, date, hours, week_number, year) VALUES (?, ?, ?, ?, ?, ?)`,
+                [alloc.colaborador_id, alloc.cliente_id, dateStr, alloc.hours, toWeek, toYear],
                 function(err) {
                     if (err) {
                         errors.push(err.message);
@@ -1208,16 +1075,10 @@ app.delete('/api/allocations/week/:year/:week', requireAdmin, (req, res) => {
 app.get('/api/dashboard/analytics', requireAuth, async (req, res) => {
     const startDate = validateDate(req.query.startDate);
     const endDate = validateDate(req.query.endDate);
-    // Enforce area access based on user's assigned area
-    const id_area = getEnforcedAreaId(req, validateId(req.query.id_area));
 
     if (!startDate || !endDate) {
         return res.status(400).json({ error: 'Fechas de inicio y fin son requeridas' });
     }
-
-    // Build area filter clause
-    const areaFilter = id_area ? ' AND a.id_area = ?' : '';
-    const baseParams = id_area ? [startDate, endDate, id_area] : [startDate, endDate];
 
     try {
         const analytics = {
@@ -1245,8 +1106,8 @@ app.get('/api/dashboard/analytics', requireAuth, async (req, res) => {
         };
 
         const totalHoursResult = await dbGet(
-            `SELECT SUM(hours) as totalHours FROM allocations a WHERE date BETWEEN ? AND ?${areaFilter}`,
-            baseParams
+            `SELECT SUM(hours) as totalHours FROM allocations WHERE date BETWEEN ? AND ?`,
+            [startDate, endDate]
         );
         analytics.kpis.totalHours = totalHoursResult?.totalHours || 0;
 
@@ -1255,15 +1116,15 @@ app.get('/api/dashboard/analytics', requireAuth, async (req, res) => {
              FROM allocations a
              INNER JOIN clientes c ON a.cliente_id = c.id
              INNER JOIN tipo_proyecto tp ON c.id_tipo_proyecto = tp.id
-             WHERE a.date BETWEEN ? AND ? AND tp.name != 'Otro'${areaFilter}`,
-            baseParams
+             WHERE a.date BETWEEN ? AND ? AND tp.name != 'Otro'`,
+            [startDate, endDate]
         );
         analytics.kpis.activeProjects = activeProjectsResult?.activeProjects || 0;
 
         const activeCollabsResult = await dbGet(
             `SELECT COUNT(DISTINCT colaborador_id) as activeCollaborators
-             FROM allocations a WHERE date BETWEEN ? AND ?${areaFilter}`,
-            baseParams
+             FROM allocations WHERE date BETWEEN ? AND ?`,
+            [startDate, endDate]
         );
         analytics.kpis.activeCollaborators = activeCollabsResult?.activeCollaborators || 0;
 
@@ -1277,8 +1138,8 @@ app.get('/api/dashboard/analytics', requireAuth, async (req, res) => {
              FROM allocations a
              INNER JOIN clientes c ON a.cliente_id = c.id
              WHERE a.date BETWEEN ? AND ?
-             AND (LOWER(c.name) LIKE '%vacacion%' OR LOWER(c.name) LIKE '%feriado%' OR LOWER(c.name) LIKE '%holiday%')${areaFilter}`,
-            baseParams
+             AND (LOWER(c.name) LIKE '%vacacion%' OR LOWER(c.name) LIKE '%feriado%' OR LOWER(c.name) LIKE '%holiday%')`,
+            [startDate, endDate]
         );
         analytics.kpis.vacationCollaborators = vacationResult?.vacationCollaborators || 0;
 
@@ -1287,8 +1148,8 @@ app.get('/api/dashboard/analytics', requireAuth, async (req, res) => {
              FROM allocations a
              INNER JOIN clientes c ON a.cliente_id = c.id
              WHERE a.date BETWEEN ? AND ?
-             AND c.name IN ('DEV/DCM', 'DEV', 'DCM')${areaFilter}`,
-            baseParams
+             AND c.name IN ('DEV/DCM', 'DEV', 'DCM')`,
+            [startDate, endDate]
         );
         analytics.kpis.trainingCollaborators = trainingResult?.trainingCollaborators || 0;
 
@@ -1297,8 +1158,8 @@ app.get('/api/dashboard/analytics', requireAuth, async (req, res) => {
              FROM allocations a
              INNER JOIN clientes c ON a.cliente_id = c.id
              WHERE a.date BETWEEN ? AND ?
-             AND c.name IN ('DEV/DCM', 'DEV', 'DCM')${areaFilter}`,
-            baseParams
+             AND c.name IN ('DEV/DCM', 'DEV', 'DCM')`,
+            [startDate, endDate]
         );
         analytics.kpis.trainingHours = trainingHoursResult?.trainingHours || 0;
 
@@ -1307,10 +1168,10 @@ app.get('/api/dashboard/analytics', requireAuth, async (req, res) => {
              FROM allocations a
              INNER JOIN clientes c ON a.cliente_id = c.id
              INNER JOIN tipo_proyecto tp ON c.id_tipo_proyecto = tp.id
-             WHERE a.date BETWEEN ? AND ?${areaFilter}
+             WHERE a.date BETWEEN ? AND ?
              GROUP BY tp.id, tp.name
              ORDER BY hours DESC`,
-            baseParams
+            [startDate, endDate]
         );
 
         const totalHours = projectTypeRows.reduce((sum, row) => sum + row.hours, 0);
@@ -1330,10 +1191,10 @@ app.get('/api/dashboard/analytics', requireAuth, async (req, res) => {
              INNER JOIN colaboradores col ON a.colaborador_id = col.id
              INNER JOIN clientes c ON a.cliente_id = c.id
              LEFT JOIN tipo_proyecto tp ON c.id_tipo_proyecto = tp.id
-             WHERE a.date BETWEEN ? AND ?${areaFilter}
+             WHERE a.date BETWEEN ? AND ?
              GROUP BY col.id, col.name, c.id, c.name, tp.name
              ORDER BY col.name, hours DESC`,
-            baseParams
+            [startDate, endDate]
         );
 
         const collaboratorMap = {};

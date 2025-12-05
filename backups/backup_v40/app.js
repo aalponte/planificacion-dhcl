@@ -13,13 +13,11 @@ const app = {
         clientes: [],
         proyectos: [],
         tipos: [],
-        areas: [],
         usuarios: [],
         currentAllocations: [],
         editingRecord: null,
         importingTable: null,
-        currentUser: null, // Stores logged-in user info
-        selectedAreaId: null // Currently selected area for filtering
+        currentUser: null // Stores logged-in user info
     },
 
     // XSS Protection - Escape HTML entities
@@ -296,17 +294,16 @@ const app = {
 
     async loadInitialData() {
         try {
-            const [colabRes, clientesRes, proyRes, tiposRes, areasRes] = await Promise.all([
+            const [colabRes, clientesRes, proyRes, tiposRes] = await Promise.all([
                 fetch('/api/config/colaboradores', { credentials: 'include' }),
                 fetch('/api/config/clientes', { credentials: 'include' }),
                 fetch('/api/config/proyectos', { credentials: 'include' }),
-                fetch('/api/config/tipos', { credentials: 'include' }),
-                fetch('/api/config/areas', { credentials: 'include' })
+                fetch('/api/config/tipos', { credentials: 'include' })
             ]);
 
             // Check for auth errors
             if (colabRes.status === 401 || clientesRes.status === 401 ||
-                proyRes.status === 401 || tiposRes.status === 401 || areasRes.status === 401) {
+                proyRes.status === 401 || tiposRes.status === 401) {
                 console.warn('[App] Session expired during data load');
                 this.logout();
                 return;
@@ -316,56 +313,10 @@ const app = {
             this.state.clientes = await clientesRes.json();
             this.state.proyectos = await proyRes.json();
             this.state.tipos = await tiposRes.json();
-            this.state.areas = await areasRes.json();
-
-            // Sort areas by ID ascending to ensure the lowest ID is first
-            this.state.areas.sort((a, b) => a.id - b.id);
-
-            // Set default selected area based on user
-            if (this.state.currentUser && this.state.currentUser.id_area) {
-                this.state.selectedAreaId = this.state.currentUser.id_area;
-            } else if (this.state.areas.length > 0) {
-                // Select the area with the lowest ID (first after sorting)
-                this.state.selectedAreaId = this.state.areas[0].id;
-            }
-
-            // Populate area selectors
-            this.populateAreaSelectors();
-
             console.log('[App] Initial data loaded successfully');
         } catch (error) {
             console.error('[App] Error loading data:', error);
         }
-    },
-
-    populateAreaSelectors() {
-        const selectors = ['dash-area', 'viewer-area', 'plan-area'];
-        const user = this.state.currentUser;
-        const userHasArea = user && user.id_area;
-
-        selectors.forEach(selectorId => {
-            const select = document.getElementById(selectorId);
-            if (!select) return;
-
-            select.innerHTML = '';
-            this.state.areas.forEach(area => {
-                const option = document.createElement('option');
-                option.value = area.id;
-                option.textContent = area.name;
-                select.appendChild(option);
-            });
-
-            // Set default value
-            if (this.state.selectedAreaId) {
-                select.value = this.state.selectedAreaId;
-            }
-
-            // Lock selector if user has assigned area
-            select.disabled = userHasArea;
-            if (userHasArea) {
-                select.title = 'Área asignada a tu usuario';
-            }
-        });
     },
 
     async loadDashboard() {
@@ -378,11 +329,8 @@ const app = {
     async loadPlanning() {
         const year = document.getElementById('plan-year')?.value || this.state.currentYear;
         const week = document.getElementById('plan-week')?.value || this.state.currentWeek;
-        const areaId = document.getElementById('plan-area')?.value || this.state.selectedAreaId;
         try {
-            let url = `/api/allocations?year=${year}&week=${week}`;
-            if (areaId) url += `&id_area=${areaId}`;
-            const response = await fetch(url, {
+            const response = await fetch(`/api/allocations?year=${year}&week=${week}`, {
                 credentials: 'include'
             });
             const allocations = await response.json();
@@ -400,7 +348,6 @@ const app = {
         // Initialize dropdowns if empty
         const yearSelect = document.getElementById('viewer-year');
         const weekSelect = document.getElementById('viewer-week');
-        const areaSelect = document.getElementById('viewer-area');
 
         if (yearSelect && yearSelect.options.length === 0) {
             this.populateViewerYearSelector();
@@ -411,12 +358,9 @@ const app = {
 
         const year = yearSelect?.value || this.state.currentYear;
         const week = weekSelect?.value || this.state.currentWeek;
-        const areaId = areaSelect?.value || this.state.selectedAreaId;
 
         try {
-            let url = `/api/allocations?year=${year}&week=${week}`;
-            if (areaId) url += `&id_area=${areaId}`;
-            const response = await fetch(url, {
+            const response = await fetch(`/api/allocations?year=${year}&week=${week}`, {
                 credentials: 'include'
             });
             const allocations = await response.json();
@@ -680,21 +624,8 @@ const app = {
         // Load usuarios data if switching to that tab
         if (tab === 'usuarios') {
             this.loadUsuarios().then(() => this.renderConfigTable(tab));
-        } else if (tab === 'areas') {
-            this.loadAreas().then(() => this.renderConfigTable(tab));
         } else {
             this.renderConfigTable(tab);
-        }
-    },
-
-    async loadAreas() {
-        try {
-            const response = await fetch('/api/config/areas', {
-                credentials: 'include'
-            });
-            this.state.areas = await response.json();
-        } catch (error) {
-            console.error('[App] Error loading areas:', error);
         }
     },
 
@@ -709,14 +640,12 @@ const app = {
             data.forEach(item => {
                 const tr = document.createElement('tr');
                 const roleLabel = item.role === 'administrador' ? '<span style="color: #e74c3c;">Administrador</span>' : '<span style="color: #3498db;">Visualizador</span>';
-                const areaLabel = item.area_name ? this.escapeHtml(item.area_name) : '<em style="color:#999;">Todas</em>';
                 tr.innerHTML = `
                     <td><input type="checkbox" class="row-checkbox" data-id="${parseInt(item.id)}"></td>
                     <td>${parseInt(item.id)}</td>
                     <td>${this.escapeHtml(item.username)}</td>
                     <td>${this.escapeHtml(item.name) || '-'}</td>
                     <td>${roleLabel}</td>
-                    <td>${areaLabel}</td>
                     <td style="text-align: right;">
                         <button class="btn-icon" onclick="app.editUser(${parseInt(item.id)})"><i class="fas fa-edit"></i></button>
                         <button class="btn-icon" onclick="app.deleteRecord('usuarios', ${parseInt(item.id)})"><i class="fas fa-trash"></i></button>
@@ -727,32 +656,13 @@ const app = {
             return;
         }
 
-        // Special handling for areas table
-        if (table === 'areas') {
-            data.forEach(item => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td><input type="checkbox" class="row-checkbox" data-id="${parseInt(item.id)}"></td>
-                    <td>${parseInt(item.id)}</td>
-                    <td>${this.escapeHtml(item.name)}</td>
-                    <td style="text-align: right;">
-                        <button class="btn-icon" onclick="app.editRecord('areas', ${parseInt(item.id)})"><i class="fas fa-edit"></i></button>
-                        <button class="btn-icon" onclick="app.deleteRecord('areas', ${parseInt(item.id)})"><i class="fas fa-trash"></i></button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-            return;
-        }
-
         data.forEach(item => {
             const tr = document.createElement('tr');
-            const areaLabel = item.area_name ? this.escapeHtml(item.area_name) : '<em style="color:#999;">-</em>';
             tr.innerHTML = `
                 <td><input type="checkbox" class="row-checkbox" data-id="${parseInt(item.id)}"></td>
                 <td>${parseInt(item.id)}</td>
                 <td>${this.escapeHtml(item.name)}</td>
-                ${table === 'clientes' ? `<td><span class="text-red">${this.escapeHtml(item.proyecto_name) || '-'}</span></td><td><span class="text-red">${this.escapeHtml(item.tipo_name) || '-'}</span></td><td>${areaLabel}</td>` : ''}
+                ${table === 'clientes' ? `<td><span class="text-red">${this.escapeHtml(item.proyecto_name) || '-'}</span></td><td><span class="text-red">${this.escapeHtml(item.tipo_name) || '-'}</span></td>` : ''}
                 <td style="text-align: right;">
                     <button class="btn-icon" onclick="app.editRecord('${this.escapeHtml(table)}', ${parseInt(item.id)})"><i class="fas fa-edit"></i></button>
                     <button class="btn-icon" onclick="app.deleteRecord('${this.escapeHtml(table)}', ${parseInt(item.id)})"><i class="fas fa-trash"></i></button>
@@ -774,24 +684,12 @@ const app = {
         document.getElementById('user-role').value = '';
         document.getElementById('user-modal-title').textContent = id ? 'Editar Usuario' : 'Añadir Usuario';
 
-        // Populate area selector
-        const areaSelect = document.getElementById('user-area');
-        if (areaSelect) {
-            areaSelect.innerHTML = '<option value="">-- Sin área (acceso a todas) --</option>';
-            this.state.areas.forEach(area => {
-                areaSelect.innerHTML += `<option value="${area.id}">${this.escapeHtml(area.name)}</option>`;
-            });
-        }
-
         if (id) {
             const user = this.state.usuarios.find(u => u.id === id);
             if (user) {
                 document.getElementById('user-username').value = user.username;
                 document.getElementById('user-name').value = user.name || '';
                 document.getElementById('user-role').value = user.role;
-                if (areaSelect) {
-                    areaSelect.value = user.id_area || '';
-                }
             }
         }
 
@@ -812,8 +710,6 @@ const app = {
         const name = document.getElementById('user-name').value.trim();
         const password = document.getElementById('user-password').value;
         const role = document.getElementById('user-role').value;
-        const areaSelect = document.getElementById('user-area');
-        const id_area = areaSelect && areaSelect.value ? parseInt(areaSelect.value) : null;
 
         if (!username || !role) {
             alert('Usuario y rol son requeridos');
@@ -825,7 +721,7 @@ const app = {
             return;
         }
 
-        const body = { username, name, role, id_area };
+        const body = { username, name, role };
         if (password) body.password = password;
 
         try {
@@ -872,29 +768,14 @@ const app = {
     openAddModal(table) {
         this.state.editingRecord = null;
         this.state.importingTable = null;
-        const tableLabels = {
-            'colaboradores': 'Colaborador',
-            'clientes': 'Cliente',
-            'proyectos': 'Proyecto',
-            'tipos': 'Tipo',
-            'areas': 'Área'
-        };
-        document.getElementById('modal-title').textContent = `Añadir ${tableLabels[table] || table}`;
+        document.getElementById('modal-title').textContent = `Añadir ${table === 'colaboradores' ? 'Colaborador' : table === 'clientes' ? 'Cliente' : table === 'proyectos' ? 'Proyecto' : 'Tipo'}`;
         document.getElementById('record-name').value = '';
         document.getElementById('cliente-fields').classList.toggle('hidden', table !== 'clientes');
         if (table === 'clientes') {
             const proySelect = document.getElementById('record-proyecto');
             const tipoSelect = document.getElementById('record-tipo');
-            const areaSelect = document.getElementById('record-area');
-            proySelect.innerHTML = '<option value="">-- Seleccionar --</option>' + this.state.proyectos.map(p => `<option value="${p.id}">${this.escapeHtml(p.name)}</option>`).join('');
-            tipoSelect.innerHTML = '<option value="">-- Seleccionar --</option>' + this.state.tipos.map(t => `<option value="${t.id}">${this.escapeHtml(t.name)}</option>`).join('');
-            if (areaSelect) {
-                areaSelect.innerHTML = '<option value="">-- Seleccionar --</option>' + this.state.areas.map(a => `<option value="${a.id}">${this.escapeHtml(a.name)}</option>`).join('');
-                // Default to currently selected area
-                if (this.state.selectedAreaId) {
-                    areaSelect.value = this.state.selectedAreaId;
-                }
-            }
+            proySelect.innerHTML = '<option value="">-- Seleccionar --</option>' + this.state.proyectos.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+            tipoSelect.innerHTML = '<option value="">-- Seleccionar --</option>' + this.state.tipos.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
         }
         document.getElementById('crud-modal').classList.remove('hidden');
     },
@@ -903,28 +784,16 @@ const app = {
         const item = this.state[table].find(i => i.id === id);
         if (!item) return;
         this.state.editingRecord = { table, id };
-        const tableLabels = {
-            'colaboradores': 'Colaborador',
-            'clientes': 'Cliente',
-            'proyectos': 'Proyecto',
-            'tipos': 'Tipo',
-            'areas': 'Área'
-        };
-        document.getElementById('modal-title').textContent = `Editar ${tableLabels[table] || table}`;
+        document.getElementById('modal-title').textContent = `Editar ${table === 'colaboradores' ? 'Colaborador' : table === 'clientes' ? 'Cliente' : table === 'proyectos' ? 'Proyecto' : 'Tipo'}`;
         document.getElementById('record-name').value = item.name;
         document.getElementById('cliente-fields').classList.toggle('hidden', table !== 'clientes');
         if (table === 'clientes') {
             const proySelect = document.getElementById('record-proyecto');
             const tipoSelect = document.getElementById('record-tipo');
-            const areaSelect = document.getElementById('record-area');
-            proySelect.innerHTML = '<option value="">-- Seleccionar --</option>' + this.state.proyectos.map(p => `<option value="${p.id}">${this.escapeHtml(p.name)}</option>`).join('');
-            tipoSelect.innerHTML = '<option value="">-- Seleccionar --</option>' + this.state.tipos.map(t => `<option value="${t.id}">${this.escapeHtml(t.name)}</option>`).join('');
+            proySelect.innerHTML = '<option value="">-- Seleccionar --</option>' + this.state.proyectos.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+            tipoSelect.innerHTML = '<option value="">-- Seleccionar --</option>' + this.state.tipos.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
             proySelect.value = item.proyecto_id || '';
             tipoSelect.value = item.tipo_id || '';
-            if (areaSelect) {
-                areaSelect.innerHTML = '<option value="">-- Seleccionar --</option>' + this.state.areas.map(a => `<option value="${a.id}">${this.escapeHtml(a.name)}</option>`).join('');
-                areaSelect.value = item.id_area || '';
-            }
         }
         document.getElementById('crud-modal').classList.remove('hidden');
     },
@@ -943,8 +812,6 @@ const app = {
             // Fix: Map dropdown values to the correct backend field names
             body.id_proyecto = document.getElementById('record-proyecto').value || null;
             body.id_tipo_proyecto = document.getElementById('record-tipo').value || null;
-            const areaSelect = document.getElementById('record-area');
-            body.id_area = areaSelect && areaSelect.value ? parseInt(areaSelect.value) : null;
         }
         try {
             if (this.state.editingRecord) {
@@ -1074,16 +941,14 @@ const app = {
         const date = document.getElementById('alloc-date').value;
         const year = parseInt(document.getElementById('plan-year').value);
         const week = parseInt(document.getElementById('plan-week').value);
-        const areaSelect = document.getElementById('plan-area');
-        const id_area = areaSelect && areaSelect.value ? parseInt(areaSelect.value) : this.state.selectedAreaId;
 
-        console.log('[Allocation] Guardando:', { id, colaboradorId, clienteId, hours, date, year, week, id_area });
+        console.log('[Allocation] Guardando:', { id, colaboradorId, clienteId, hours, date, year, week });
 
         if (!clienteId || !hours || !date) {
             alert('Completa todos los campos');
             return;
         }
-        const body = { colaborador_id: colaboradorId, cliente_id: clienteId, hours, date, year, week_number: week, id_area };
+        const body = { colaborador_id: colaboradorId, cliente_id: clienteId, hours, date, year, week_number: week };
 
         console.log('[Allocation] Body:', body);
 
@@ -1144,8 +1009,6 @@ const app = {
     async copyPreviousWeek() {
         const currentYear = parseInt(document.getElementById('plan-year').value);
         const currentWeek = parseInt(document.getElementById('plan-week').value);
-        const areaSelect = document.getElementById('plan-area');
-        const id_area = areaSelect && areaSelect.value ? parseInt(areaSelect.value) : this.state.selectedAreaId;
 
         // Calculate next week and year
         let nextWeek = currentWeek + 1;
@@ -1168,8 +1031,7 @@ const app = {
                     fromYear: currentYear,
                     fromWeek: currentWeek,
                     toYear: nextYear,
-                    toWeek: nextWeek,
-                    id_area
+                    toWeek: nextWeek
                 })
             });
 
@@ -1205,8 +1067,6 @@ const app = {
     async createNewPlanning() {
         const currentYear = parseInt(document.getElementById('plan-year').value);
         const currentWeek = parseInt(document.getElementById('plan-week').value);
-        const areaSelect = document.getElementById('plan-area');
-        const id_area = areaSelect && areaSelect.value ? parseInt(areaSelect.value) : this.state.selectedAreaId;
 
         // Calculate next week and year
         let nextWeek = currentWeek + 1;
@@ -1223,9 +1083,7 @@ const app = {
 
         try {
             // Get current week's allocations to extract unique collaborators
-            let url = `/api/allocations?year=${currentYear}&week=${currentWeek}`;
-            if (id_area) url += `&id_area=${id_area}`;
-            const response = await fetch(url, {
+            const response = await fetch(`/api/allocations?year=${currentYear}&week=${currentWeek}`, {
                 credentials: 'include'
             });
             const currentAllocations = await response.json();
@@ -1269,8 +1127,7 @@ const app = {
                         hours: 8, // 8 hours by default
                         date: dateStr,
                         week_number: nextWeek,
-                        year: nextYear,
-                        id_area
+                        year: nextYear
                     })
                 });
 

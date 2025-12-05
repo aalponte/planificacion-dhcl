@@ -5,6 +5,17 @@
 -- Configuration Tables
 -- ============================================
 
+-- 0. Areas (Business Units - Master)
+CREATE TABLE IF NOT EXISTS areas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert default areas
+INSERT OR IGNORE INTO areas (name) VALUES ('Data Hub');
+INSERT OR IGNORE INTO areas (name) VALUES ('Channel Lab');
+
 -- 1. Colaboradores (Workers)
 CREATE TABLE IF NOT EXISTS colaboradores (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -87,6 +98,26 @@ CREATE TABLE IF NOT EXISTS usuarios (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Insert default admin user (password: admin123)
-INSERT OR IGNORE INTO usuarios (username, password, role, name) 
-VALUES ('admin', 'admin123', 'administrador', 'Administrador');
+-- Insert default admin user (password: hashed bcrypt - original was 'admin123')
+-- The password below is bcrypt hash of 'admin123' with cost factor 12
+-- IMPORTANT: Change this password immediately after first login!
+INSERT OR IGNORE INTO usuarios (username, password, role, name)
+VALUES ('admin', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.G5e1Q3x0jY1W6i', 'administrador', 'Administrador');
+
+-- ============================================
+-- Migration: Add id_area column to tables
+-- ============================================
+
+-- Add id_area to usuarios (nullable - no area means can access all areas)
+-- Using pragma to check if column exists before adding
+CREATE TABLE IF NOT EXISTS _migration_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    migration_name TEXT UNIQUE,
+    applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Add id_area to clientes if not exists
+-- SQLite doesn't support IF NOT EXISTS for ADD COLUMN, so we use a workaround
+-- These will fail silently if columns already exist due to try/catch in the database initialization
+
+-- NOTE: Index for area filtering are created in database.js runMigrations() after columns are added
