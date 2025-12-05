@@ -1331,10 +1331,21 @@ app.get('/api/dashboard/analytics', requireAuth, async (req, res) => {
         );
         analytics.kpis.activeProjects = activeProjectsResult?.active_projects || 0;
 
+        // Count active collaborators excluding those who ONLY have vacation assignments (id_proyecto=4)
+        // A collaborator is excluded only if ALL their allocations in the range are for vacation clients
         const activeCollabsResult = await dbGet(
-            `SELECT COUNT(DISTINCT colaborador_id) as active_collaborators
-             FROM allocations a WHERE date BETWEEN ? AND ?${areaFilter}`,
-            baseParams
+            `SELECT COUNT(DISTINCT a.colaborador_id) as active_collaborators
+             FROM allocations a
+             WHERE a.date BETWEEN ? AND ?${areaFilter}
+             AND a.colaborador_id NOT IN (
+                 SELECT sub.colaborador_id
+                 FROM allocations sub
+                 INNER JOIN clientes c ON sub.cliente_id = c.id
+                 WHERE sub.date BETWEEN ? AND ?${areaFilter ? ' AND sub.id_area = ?' : ''}
+                 GROUP BY sub.colaborador_id
+                 HAVING COUNT(DISTINCT CASE WHEN c.id_proyecto = 4 THEN sub.cliente_id END) = COUNT(DISTINCT sub.cliente_id)
+             )`,
+            id_area ? [startDate, endDate, id_area, startDate, endDate, id_area] : [startDate, endDate, startDate, endDate]
         );
         analytics.kpis.activeCollaborators = activeCollabsResult?.active_collaborators || 0;
 
