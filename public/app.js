@@ -623,10 +623,24 @@ const app = {
     },
 
     async copyPreviousDayAllocations(colaboradorId, targetDateStr) {
-        // Calculate previous day
-        const targetDate = new Date(targetDateStr);
+        // Calculate previous WORKING day (Mon->Fri of prev week, Tue-Fri->previous day)
+        const targetDate = new Date(targetDateStr + 'T12:00:00'); // Add time to avoid timezone issues
+        const dayOfWeek = targetDate.getDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+
         const prevDate = new Date(targetDate);
-        prevDate.setDate(prevDate.getDate() - 1);
+        if (dayOfWeek === 1) {
+            // Monday: go back to Friday (3 days)
+            prevDate.setDate(prevDate.getDate() - 3);
+        } else if (dayOfWeek === 0) {
+            // Sunday: go back to Friday (2 days)
+            prevDate.setDate(prevDate.getDate() - 2);
+        } else if (dayOfWeek === 6) {
+            // Saturday: go back to Friday (1 day)
+            prevDate.setDate(prevDate.getDate() - 1);
+        } else {
+            // Tue-Fri: go back 1 day
+            prevDate.setDate(prevDate.getDate() - 1);
+        }
         const prevDateStr = prevDate.toISOString().split('T')[0];
 
         // Get area id
