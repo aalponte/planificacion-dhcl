@@ -261,6 +261,12 @@ const app = {
         const navViewer = document.getElementById('nav-viewer');
         const navConfig = document.getElementById('nav-config');
 
+        // Config tabs that should be hidden for area-restricted admins
+        const tabUsuarios = document.getElementById('tab-usuarios');
+        const tabProyectos = document.getElementById('tab-proyectos');
+        const tabTipos = document.getElementById('tab-tipos');
+        const tabAreas = document.getElementById('tab-areas');
+
         if (user.role === 'visualizador') {
             // Hide non-viewer sections
             if (navDashboard) navDashboard.style.display = 'none';
@@ -273,6 +279,20 @@ const app = {
             if (navPlanning) navPlanning.style.display = 'inline-block';
             if (navViewer) navViewer.style.display = 'inline-block';
             if (navConfig) navConfig.style.display = 'inline-block';
+
+            // If admin has area assigned, hide certain config tabs
+            if (user.id_area) {
+                if (tabUsuarios) tabUsuarios.style.display = 'none';
+                if (tabProyectos) tabProyectos.style.display = 'none';
+                if (tabTipos) tabTipos.style.display = 'none';
+                if (tabAreas) tabAreas.style.display = 'none';
+            } else {
+                // Full admin - show all tabs
+                if (tabUsuarios) tabUsuarios.style.display = 'inline-block';
+                if (tabProyectos) tabProyectos.style.display = 'inline-block';
+                if (tabTipos) tabTipos.style.display = 'inline-block';
+                if (tabAreas) tabAreas.style.display = 'inline-block';
+            }
         }
     },
 
