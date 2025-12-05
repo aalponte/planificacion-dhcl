@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
 );
 
 -- ============================================
--- Indexes for Performance
+-- Indexes for Performance (core indexes only)
 -- ============================================
 CREATE INDEX IF NOT EXISTS idx_allocations_week ON allocations(year, week_number);
 CREATE INDEX IF NOT EXISTS idx_allocations_colaborador ON allocations(colaborador_id);
@@ -98,7 +98,7 @@ CREATE INDEX IF NOT EXISTS idx_clientes_proyecto ON clientes(id_proyecto);
 CREATE INDEX IF NOT EXISTS idx_clientes_tipo ON clientes(id_tipo_proyecto);
 CREATE INDEX IF NOT EXISTS idx_clientes_area ON clientes(id_area);
 CREATE INDEX IF NOT EXISTS idx_usuarios_area ON usuarios(id_area);
-CREATE INDEX IF NOT EXISTS idx_colaboradores_area ON colaboradores(id_area);
+-- Note: idx_colaboradores_area is created in runMigrations after ensuring column exists
 
 -- Insert default admin user with bcrypt hashed password (admin123)
 -- The password below is bcrypt hash of 'admin123' with cost factor 12
@@ -110,11 +110,13 @@ ON CONFLICT (username) DO NOTHING;
 
 async function initializeDatabase() {
     try {
+        // First run migrations to add any missing columns to existing tables
+        await runMigrations();
+
+        // Then run schema (CREATE TABLE IF NOT EXISTS won't modify existing tables,
+        // but will create missing ones and set up indexes)
         await pool.query(schema);
         console.log('PostgreSQL database schema initialized successfully');
-
-        // Run migrations for existing databases
-        await runMigrations();
     } catch (err) {
         console.error('Error initializing PostgreSQL database schema:', err);
         throw err;
