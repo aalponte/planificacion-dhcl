@@ -1340,7 +1340,7 @@ app.get('/api/dashboard/analytics', requireAuth, async (req, res) => {
              FROM allocations a
              INNER JOIN clientes c ON a.cliente_id = c.id
              WHERE a.date BETWEEN ? AND ?
-             AND (LOWER(c.name) LIKE '%vacacion%' OR LOWER(c.name) LIKE '%feriado%' OR LOWER(c.name) LIKE '%holiday%')${areaFilter}`,
+             AND c.id_proyecto = 4${areaFilter}`,
             baseParams
         );
         analytics.kpis.vacationCollaborators = vacationResult?.vacation_collaborators || 0;
