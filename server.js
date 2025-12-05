@@ -41,21 +41,16 @@ app.use(helmet({
             connectSrc: ["'self'", "https://cdn.jsdelivr.net"]
         }
     },
-    crossOriginEmbedderPolicy: false,
-    // Permissions Policy - restrict browser features
-    permissionsPolicy: {
-        features: {
-            geolocation: [],
-            camera: [],
-            microphone: [],
-            payment: [],
-            usb: [],
-            magnetometer: [],
-            gyroscope: [],
-            accelerometer: []
-        }
-    }
+    crossOriginEmbedderPolicy: false
 }));
+
+// Permissions-Policy header (set manually for better compatibility)
+app.use((req, res, next) => {
+    res.setHeader('Permissions-Policy',
+        'geolocation=(), camera=(), microphone=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), interest-cohort=()'
+    );
+    next();
+});
 
 // CORS - Configuration for production and development
 const allowedOrigins = process.env.ALLOWED_ORIGINS
