@@ -1306,11 +1306,12 @@ const app = {
                 areaCollaborators.forEach(c => uniqueCollaborators.add(c.id));
                 collaboratorIds.push(...Array.from(uniqueCollaborators));
 
-                // Find vacation client for this area (client with id_proyecto=4 "Vacaciones" for this area)
+                // Find vacation client for this area (client with proyecto_id=4 "Vacaciones" for this area)
                 // Use parseInt to ensure type consistency for comparison
+                // Note: API returns proyecto_id, not id_proyecto
                 const areaIdNum = parseInt(id_area);
                 const vacationClient = this.state.clientes.find(c =>
-                    parseInt(c.id_area) === areaIdNum && parseInt(c.id_proyecto) === 4
+                    parseInt(c.id_area) === areaIdNum && parseInt(c.proyecto_id) === 4
                 );
 
                 console.log('[NewPlanning] Buscando cliente vacaciones para área:', areaIdNum);
@@ -1318,7 +1319,7 @@ const app = {
                     id: c.id,
                     name: c.name,
                     id_area: c.id_area,
-                    id_proyecto: c.id_proyecto
+                    proyecto_id: c.proyecto_id
                 })));
                 console.log('[NewPlanning] Cliente encontrado:', vacationClient);
 
@@ -1327,7 +1328,7 @@ const app = {
                     this._vacationClientId = vacationClient.id;
                     console.log('[NewPlanning] Usando cliente de vacaciones ID:', vacationClient.id, vacationClient.name);
                 } else {
-                    console.warn('[NewPlanning] No se encontró cliente de vacaciones (id_proyecto=4) para el área:', areaIdNum);
+                    console.warn('[NewPlanning] No se encontró cliente de vacaciones (proyecto_id=4) para el área:', areaIdNum);
                     // Show available clients for debugging
                     const clientesDelArea = this.state.clientes.filter(c => parseInt(c.id_area) === areaIdNum);
                     console.log('[NewPlanning] Clientes del área:', clientesDelArea);
@@ -1336,10 +1337,11 @@ const app = {
 
             // ALWAYS find vacation client for this area when creating new planning (regardless of whether we found previous records)
             // This ensures the correct vacation client is used based on the selected area
+            // Note: API returns proyecto_id, not id_proyecto
             if (id_area && !this._vacationClientId) {
                 const areaIdNum = parseInt(id_area);
                 const vacationClient = this.state.clientes.find(c =>
-                    parseInt(c.id_area) === areaIdNum && parseInt(c.id_proyecto) === 4
+                    parseInt(c.id_area) === areaIdNum && parseInt(c.proyecto_id) === 4
                 );
                 if (vacationClient) {
                     this._vacationClientId = vacationClient.id;
