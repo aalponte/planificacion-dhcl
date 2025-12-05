@@ -1258,27 +1258,27 @@ app.get('/api/dashboard/analytics', requireAuth, async (req, res) => {
         };
 
         const totalHoursResult = await dbGet(
-            `SELECT SUM(hours) as totalHours FROM allocations a WHERE date BETWEEN ? AND ?${areaFilter}`,
+            `SELECT SUM(hours) as total_hours FROM allocations a WHERE date BETWEEN ? AND ?${areaFilter}`,
             baseParams
         );
-        analytics.kpis.totalHours = totalHoursResult?.totalHours || 0;
+        analytics.kpis.totalHours = Math.round(totalHoursResult?.total_hours || 0);
 
         const activeProjectsResult = await dbGet(
-            `SELECT COUNT(DISTINCT a.cliente_id) as activeProjects
+            `SELECT COUNT(DISTINCT a.cliente_id) as active_projects
              FROM allocations a
              INNER JOIN clientes c ON a.cliente_id = c.id
              INNER JOIN tipo_proyecto tp ON c.id_tipo_proyecto = tp.id
              WHERE a.date BETWEEN ? AND ? AND tp.name != 'Otro'${areaFilter}`,
             baseParams
         );
-        analytics.kpis.activeProjects = activeProjectsResult?.activeProjects || 0;
+        analytics.kpis.activeProjects = activeProjectsResult?.active_projects || 0;
 
         const activeCollabsResult = await dbGet(
-            `SELECT COUNT(DISTINCT colaborador_id) as activeCollaborators
+            `SELECT COUNT(DISTINCT colaborador_id) as active_collaborators
              FROM allocations a WHERE date BETWEEN ? AND ?${areaFilter}`,
             baseParams
         );
-        analytics.kpis.activeCollaborators = activeCollabsResult?.activeCollaborators || 0;
+        analytics.kpis.activeCollaborators = activeCollabsResult?.active_collaborators || 0;
 
         const avgAllocation = analytics.kpis.activeCollaborators > 0
             ? (analytics.kpis.totalHours / analytics.kpis.activeCollaborators).toFixed(1)
@@ -1286,34 +1286,34 @@ app.get('/api/dashboard/analytics', requireAuth, async (req, res) => {
         analytics.kpis.averageAllocation = parseFloat(avgAllocation);
 
         const vacationResult = await dbGet(
-            `SELECT COUNT(DISTINCT a.colaborador_id) as vacationCollaborators
+            `SELECT COUNT(DISTINCT a.colaborador_id) as vacation_collaborators
              FROM allocations a
              INNER JOIN clientes c ON a.cliente_id = c.id
              WHERE a.date BETWEEN ? AND ?
              AND (LOWER(c.name) LIKE '%vacacion%' OR LOWER(c.name) LIKE '%feriado%' OR LOWER(c.name) LIKE '%holiday%')${areaFilter}`,
             baseParams
         );
-        analytics.kpis.vacationCollaborators = vacationResult?.vacationCollaborators || 0;
+        analytics.kpis.vacationCollaborators = vacationResult?.vacation_collaborators || 0;
 
         const trainingResult = await dbGet(
-            `SELECT COUNT(DISTINCT a.colaborador_id) as trainingCollaborators
+            `SELECT COUNT(DISTINCT a.colaborador_id) as training_collaborators
              FROM allocations a
              INNER JOIN clientes c ON a.cliente_id = c.id
              WHERE a.date BETWEEN ? AND ?
              AND c.name IN ('DEV/DCM', 'DEV', 'DCM')${areaFilter}`,
             baseParams
         );
-        analytics.kpis.trainingCollaborators = trainingResult?.trainingCollaborators || 0;
+        analytics.kpis.trainingCollaborators = trainingResult?.training_collaborators || 0;
 
         const trainingHoursResult = await dbGet(
-            `SELECT SUM(a.hours) as trainingHours
+            `SELECT SUM(a.hours) as training_hours
              FROM allocations a
              INNER JOIN clientes c ON a.cliente_id = c.id
              WHERE a.date BETWEEN ? AND ?
              AND c.name IN ('DEV/DCM', 'DEV', 'DCM')${areaFilter}`,
             baseParams
         );
-        analytics.kpis.trainingHours = trainingHoursResult?.trainingHours || 0;
+        analytics.kpis.trainingHours = Math.round(trainingHoursResult?.training_hours || 0);
 
         const projectTypeRows = await dbAll(
             `SELECT tp.name as type, SUM(a.hours) as hours
@@ -1326,10 +1326,10 @@ app.get('/api/dashboard/analytics', requireAuth, async (req, res) => {
             baseParams
         );
 
-        const totalHours = projectTypeRows.reduce((sum, row) => sum + row.hours, 0);
+        const totalHours = projectTypeRows.reduce((sum, row) => sum + (row.hours || 0), 0);
         analytics.projectTypeDistribution = projectTypeRows.map(row => ({
             type: row.type,
-            hours: row.hours,
+            hours: Math.round(row.hours || 0),
             percentage: totalHours > 0 ? ((row.hours / totalHours) * 100).toFixed(1) : 0
         }));
 
@@ -1360,7 +1360,7 @@ app.get('/api/dashboard/analytics', requireAuth, async (req, res) => {
             collaboratorMap[row.collaborator].projects.push({
                 client: row.client,
                 type: row.type,
-                hours: row.hours
+                hours: Math.round(row.hours || 0)
             });
         });
 

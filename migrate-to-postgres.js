@@ -31,7 +31,7 @@ if (!process.env.DATABASE_URL) {
 const sqliteDb = new sqlite3.Database(SQLITE_PATH);
 const pgPool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    ssl: { rejectUnauthorized: false }  // Required for Render and most cloud providers
 });
 
 // Helper to run SQLite query as Promise
