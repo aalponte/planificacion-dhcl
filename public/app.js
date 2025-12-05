@@ -652,7 +652,7 @@ const app = {
 
         // Fetch previous day's allocations for this collaborator
         const year = prevDate.getFullYear();
-        const prevWeek = this.getISOWeek(prevDate);
+        const prevWeek = app.getISOWeek(prevDate);
 
         try {
             const response = await fetch(`/api/allocations?year=${year}&week=${prevWeek}&id_area=${areaId}`, {
@@ -666,12 +666,12 @@ const app = {
             );
 
             if (prevDayAllocations.length === 0) {
-                alert(`No hay asignaciones para ${this.state.colaboradores.find(c => c.id == colaboradorId)?.name || 'este colaborador'} el día anterior (${prevDateStr}).`);
+                alert(`No hay asignaciones para ${app.state.colaboradores.find(c => c.id == colaboradorId)?.name || 'este colaborador'} el día anterior (${prevDateStr}).`);
                 return;
             }
 
             // Get collaborator name for confirmation
-            const colaboradorName = this.state.colaboradores.find(c => c.id == colaboradorId)?.name || 'el colaborador';
+            const colaboradorName = app.state.colaboradores.find(c => c.id == colaboradorId)?.name || 'el colaborador';
 
             // Show confirmation with warning
             const clientNames = prevDayAllocations.map(a => `${a.cliente_name}: ${a.hours}h`).join('\n');
@@ -685,7 +685,7 @@ const app = {
             if (!confirmed) return;
 
             // Get target week number
-            const targetWeek = this.getISOWeek(targetDate);
+            const targetWeek = app.getISOWeek(targetDate);
             const targetYear = targetDate.getFullYear();
 
             // Delete existing allocations for this collaborator on target date
@@ -717,7 +717,7 @@ const app = {
             }
 
             // Refresh planning grid
-            await this.loadPlanningData();
+            await app.loadPlanningData();
             alert(`Se copiaron ${prevDayAllocations.length} asignación(es) exitosamente.`);
 
         } catch (error) {
