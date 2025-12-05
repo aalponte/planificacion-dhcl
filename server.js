@@ -16,6 +16,11 @@ const db = require('./db');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust proxy for Render/Cloud platforms (required for rate-limit and secure cookies)
+if (process.env.NODE_ENV === 'production') {
+    app.set('trust proxy', 1);
+}
+
 // ============================================
 // SECURITY CONFIGURATION
 // ============================================
@@ -39,18 +44,26 @@ app.use(helmet({
     crossOriginEmbedderPolicy: false
 }));
 
-// CORS - Restrictive configuration
+// CORS - Configuration for production and development
 const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',')
     : ['http://localhost:3000', 'http://localhost:8080'];
 
 app.use(cors({
     origin: function(origin, callback) {
-        // Allow requests with no origin (mobile apps, curl, etc) in development
-        if (!origin && process.env.NODE_ENV !== 'production') {
+        // Allow requests with no origin (same-origin requests, mobile apps, curl)
+        // This is safe because session cookies are used for authentication
+        if (!origin) {
             return callback(null, true);
         }
-        if (!origin || allowedOrigins.includes(origin)) {
+        // In production, also allow the Render domain
+        if (process.env.NODE_ENV === 'production') {
+            // Allow any .onrender.com domain or configured origins
+            if (origin.endsWith('.onrender.com') || allowedOrigins.includes(origin)) {
+                return callback(null, true);
+            }
+        }
+        if (allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
             callback(new Error('Not allowed by CORS'));
@@ -74,7 +87,7 @@ app.use(session({
         secure: process.env.NODE_ENV === 'production', // HTTPS only in production
         httpOnly: true, // Prevent XSS access to cookie
         maxAge: 8 * 60 * 60 * 1000, // 8 hours
-        sameSite: 'strict' // CSRF protection
+        sameSite: 'lax' // 'lax' works for same-site navigation in production
     }
 }));
 
