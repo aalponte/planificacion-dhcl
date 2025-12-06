@@ -1043,16 +1043,17 @@ const app = {
 
             if (!response.ok) {
                 const data = await response.json();
-                alert(data.error || 'Error al guardar usuario');
+                showToast(data.error || 'Error al guardar usuario', 'error');
                 return;
             }
 
             this.closeUserModal();
             await this.loadUsuarios();
             this.renderConfigTable('usuarios');
+            showToast(id ? 'Usuario actualizado' : 'Usuario creado', 'success');
         } catch (error) {
             console.error('[App] Error saving user:', error);
-            alert('Error al guardar usuario: ' + error.message);
+            showToast('Error al guardar usuario', 'error');
         }
     },
 
@@ -1198,9 +1199,10 @@ const app = {
             await this.loadInitialData();
             this.renderConfigTable(table);
             this.closeModal();
+            showToast(this.state.editingRecord ? 'Registro actualizado' : 'Registro creado', 'success');
         } catch (error) {
             console.error('[Config] Error saving:', error);
-            alert('Error al guardar');
+            showToast('Error al guardar', 'error');
         }
     },
 
@@ -1210,16 +1212,17 @@ const app = {
             await fetch(`/api/config/${table}/${id}`, { method: 'DELETE', credentials: 'include' });
             await this.loadInitialData();
             this.renderConfigTable(table);
+            showToast('Registro eliminado', 'success');
         } catch (error) {
             console.error('[Config] Error deleting:', error);
-            alert('Error al eliminar');
+            showToast('Error al eliminar', 'error');
         }
     },
 
     async deleteSelected(table) {
         const checkboxes = document.querySelectorAll(`#table-${table} .row-checkbox:checked`);
         if (checkboxes.length === 0) {
-            alert('No hay registros seleccionados');
+            showToast('No hay registros seleccionados', 'warning');
             return;
         }
         if (!confirm(`¿Eliminar ${checkboxes.length} registro(s)?`)) return;
@@ -1229,9 +1232,10 @@ const app = {
             ));
             await this.loadInitialData();
             this.renderConfigTable(table);
+            showToast(`${checkboxes.length} registro(s) eliminado(s)`, 'success');
         } catch (error) {
             console.error('[Config] Error deleting:', error);
-            alert('Error al eliminar');
+            showToast('Error al eliminar', 'error');
         }
     },
 
@@ -1267,7 +1271,7 @@ const app = {
             showToast('Importación exitosa', 'success');
         } catch (error) {
             console.error('[Import] Error:', error);
-            alert('Error al importar');
+            showToast('Error al importar', 'error');
         }
     },
 
