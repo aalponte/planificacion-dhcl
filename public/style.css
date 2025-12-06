@@ -1,12 +1,10 @@
-@import "https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap";
-@import "https://fonts.googleapis.com/icon?family=Material+Icons";
-
 /* ============================================
    LLYC Variables & Reset
    ============================================ */
 :root {
     --llyc-red: #E63946;
     --llyc-red-hover: #D32F3C;
+    --llyc-red-light: rgba(230, 57, 70, 0.1);
     --llyc-gray: #2C3E50;
     --llyc-gray-subtext: #7F8C8D;
     --llyc-light-gray: #E5E7EB;
@@ -54,12 +52,28 @@ body {
 .navbar-brand {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    font-weight: 700;
+    gap: 8px;
+}
+
+.brand-llyc {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--llyc-red);
+    letter-spacing: -0.5px;
+}
+
+.brand-separator {
+    color: var(--llyc-light-gray);
+    font-weight: 300;
+    font-size: 20px;
+}
+
+.brand-title {
+    font-size: 14px;
+    font-weight: 600;
     color: var(--llyc-gray);
     text-transform: uppercase;
     letter-spacing: 1px;
-    font-size: 14px;
 }
 
 .navbar-menu {
@@ -69,29 +83,38 @@ body {
 }
 
 .nav-menu-item {
-    background: none;
+    background: transparent;
     border: none;
-    padding: 0.6rem 1.2rem;
+    padding: 10px 16px;
     font-family: 'Montserrat', sans-serif;
     font-weight: 600;
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--llyc-gray);
+    color: var(--llyc-gray-subtext);
     cursor: pointer;
-    transition: all 0.3s ease;
-    border-bottom: 3px solid transparent;
+    transition: all 0.2s ease;
+    border-radius: 4px;
     text-decoration: none;
     white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nav-menu-item i {
+    font-size: 14px;
 }
 
 .nav-menu-item:hover {
+    background: var(--llyc-red-light);
     color: var(--llyc-red);
 }
 
 .nav-menu-item.active {
+    background: var(--llyc-red-light);
     color: var(--llyc-red);
-    border-bottom-color: var(--llyc-red);
+    border-bottom: 2px solid var(--llyc-red);
 }
 
 .navbar-user {

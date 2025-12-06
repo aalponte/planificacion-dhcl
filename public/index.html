@@ -6,11 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
     <title>Gestor de Planificación - LLYC</title>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=42">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css?v=43">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 </head>
@@ -38,18 +39,18 @@
     <div id="app-container" class="hidden">
         <nav class="navbar">
             <div class="navbar-brand">
-                <span>LLYC</span>
-                <span style="opacity: 0.5; font-weight: 400;">|</span>
-                <span style="font-weight: 400; font-size: 12px;">Planificación</span>
+                <span class="brand-llyc">LLYC</span>
+                <span class="brand-separator">|</span>
+                <span class="brand-title">Planificador de Recursos</span>
             </div>
             <div class="navbar-menu">
                 <button class="nav-menu-item active" onclick="app.navigateTo('dashboard')"
-                    id="nav-dashboard">Resumen</button>
+                    id="nav-dashboard"><i class="fas fa-chart-pie"></i> Resumen</button>
                 <button class="nav-menu-item" onclick="app.navigateTo('viewer')"
-                    id="nav-viewer">Visor</button>
+                    id="nav-viewer"><i class="fas fa-eye"></i> Visor</button>
                 <button class="nav-menu-item" onclick="app.navigateTo('planning')"
-                    id="nav-planning">Planificación</button>
-                <button class="nav-menu-item" onclick="app.navigateTo('config')" id="nav-config">Configuración</button>
+                    id="nav-planning"><i class="fas fa-calendar-alt"></i> Planificación</button>
+                <button class="nav-menu-item" onclick="app.navigateTo('config')" id="nav-config"><i class="fas fa-cog"></i> Configuración</button>
             </div>
             <div class="navbar-user">
                 <span id="navbar-username" style="color: var(--llyc-gray-subtext); font-size: 13px;">Admin</span>
