@@ -3,6 +3,51 @@
  * Secure Version
  */
 
+// Toast notification system
+function showToast(message, type = 'success', duration = 3000) {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+
+    const icons = {
+        success: 'fa-check-circle',
+        error: 'fa-times-circle',
+        warning: 'fa-exclamation-triangle',
+        info: 'fa-info-circle'
+    };
+
+    toast.innerHTML = `
+        <i class="fas ${icons[type] || icons.info} toast-icon"></i>
+        <span class="toast-message">${message}</span>
+        <button class="toast-close" onclick="this.parentElement.remove()">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+
+    container.appendChild(toast);
+
+    // Trigger animation
+    requestAnimationFrame(() => {
+        toast.classList.add('show');
+    });
+
+    // Auto-remove after duration
+    setTimeout(() => {
+        toast.classList.remove('show');
+        toast.classList.add('hiding');
+        setTimeout(() => toast.remove(), 300);
+    }, duration);
+
+    return toast;
+}
+
 const app = {
     state: {
         currentView: 'dashboard',
@@ -738,7 +783,7 @@ const app = {
 
             // Refresh planning grid
             await app.loadPlanning();
-            alert(`Se copiaron ${prevDayAllocations.length} asignación(es) exitosamente.`);
+            showToast(`Se copiaron ${prevDayAllocations.length} asignación(es) exitosamente`, 'success');
 
         } catch (error) {
             console.error('[App] Error copying previous day allocations:', error);
@@ -1219,7 +1264,7 @@ const app = {
             await this.loadInitialData();
             this.renderConfigTable(this.state.importingTable);
             this.closeImportModal();
-            alert('Importación exitosa');
+            showToast('Importación exitosa', 'success');
         } catch (error) {
             console.error('[Import] Error:', error);
             alert('Error al importar');
@@ -1316,7 +1361,7 @@ const app = {
 
             await this.loadPlanning();
             this.closeAllocationModal();
-            alert('Cambios guardados correctamente');
+            showToast('Cambios guardados correctamente', 'success');
         } catch (error) {
             console.error('[Allocation] Error saving:', error);
             alert('Error al guardar: ' + error.message);
@@ -1390,7 +1435,7 @@ const app = {
             // Load the new week's data
             await this.loadPlanning();
 
-            alert(`Semana ${currentWeek}/${currentYear} copiada exitosamente a semana ${nextWeek}/${nextYear}`);
+            showToast(`Semana ${currentWeek}/${currentYear} copiada a semana ${nextWeek}/${nextYear}`, 'success');
         } catch (error) {
             console.error('[Planning] Error copying:', error);
             alert('Error al copiar semana: ' + error.message);
@@ -1556,7 +1601,7 @@ const app = {
             // Load the new week
             await this.loadPlanning();
 
-            alert(`Nueva planificación creada para semana ${nextWeek}/${nextYear}.\n\nSe crearon ${createdCount} registros vacíos para los colaboradores.\nAhora puedes asignar horas usando el botón "+".`);
+            showToast(`Nueva planificación creada para semana ${nextWeek}/${nextYear}`, 'success');
         } catch (error) {
             console.error('[New Planning] Error:', error);
             alert('Error al crear nueva planificación: ' + error.message);
@@ -1587,7 +1632,7 @@ const app = {
             // Reload planning
             await this.loadPlanning();
 
-            alert(`Planificación de ${colaborador_name} eliminada (${result.changes} asignaciones)`);
+            showToast(`Planificación de ${colaborador_name} eliminada`, 'success');
         } catch (error) {
             console.error('[Delete Collaborator] Error:', error);
             alert('Error al eliminar planificación del colaborador: ' + error.message);
@@ -1686,7 +1731,7 @@ const app = {
             // Load planning (will be empty or switch to another week)
             await this.loadPlanning();
 
-            alert(`Semana ${week}/${year} eliminada completamente (${result.changes} asignaciones)`);
+            showToast(`Semana ${week}/${year} eliminada completamente`, 'success');
         } catch (error) {
             console.error('[Delete Week] Error:', error);
             alert('Error al eliminar planificación de la semana: ' + error.message);
