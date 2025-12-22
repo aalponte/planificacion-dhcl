@@ -2657,6 +2657,7 @@ const app = {
 
         this.compCharts.scatter = new Chart(ctx, {
             type: 'scatter',
+            plugins: [ChartDataLabels],
             data: {
                 datasets: [{
                     label: 'Clientes',
@@ -2697,6 +2698,20 @@ const app = {
                                 if (!d.label) return '';
                                 return `${d.label}: Plan ${d.x.toFixed(1)}h, Real ${d.y.toFixed(1)}h`;
                             }
+                        }
+                    },
+                    datalabels: {
+                        display: (context) => {
+                            // Only show labels for scatter points, not the line
+                            return context.datasetIndex === 0;
+                        },
+                        align: 'bottom',
+                        offset: 4,
+                        color: '#333',
+                        font: { size: 9 },
+                        formatter: (value) => {
+                            if (!value.label) return '';
+                            return value.label.length > 15 ? value.label.substring(0, 15) + '...' : value.label;
                         }
                     }
                 },
@@ -2780,6 +2795,7 @@ const app = {
 
         this.compCharts.trend = new Chart(ctx, {
             type: 'line',
+            plugins: [ChartDataLabels],
             data: { labels, datasets },
             options: {
                 responsive: true,
@@ -2788,6 +2804,24 @@ const app = {
                     legend: {
                         position: 'top',
                         labels: { usePointStyle: true }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}h`;
+                            }
+                        }
+                    },
+                    datalabels: {
+                        display: (context) => {
+                            // Only show on points with significant values
+                            return context.parsed.y > 0;
+                        },
+                        align: 'top',
+                        offset: 4,
+                        color: (context) => context.datasetIndex === 0 ? '#2980b9' : '#8e44ad',
+                        font: { size: 9, weight: 'bold' },
+                        formatter: (value) => value.toFixed(1)
                     }
                 },
                 scales: {
