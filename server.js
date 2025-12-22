@@ -1081,8 +1081,15 @@ app.post('/api/allocations', requireAdmin, (req, res) => {
     const week_number = validateWeek(req.body.week_number);
     const year = validateYear(req.body.year);
     const id_area = validateId(req.body.id_area);
-    const region_id = validateId(req.body.region_id);
-    const pais_id = validateId(req.body.pais_id);
+    // Handle region_id and pais_id - convert null/undefined/empty to null for PostgreSQL
+    const region_id = req.body.region_id !== null && req.body.region_id !== undefined && req.body.region_id !== ''
+        ? validateId(req.body.region_id)
+        : null;
+    const pais_id = req.body.pais_id !== null && req.body.pais_id !== undefined && req.body.pais_id !== ''
+        ? validateId(req.body.pais_id)
+        : null;
+
+    console.log('[POST /api/allocations] Received:', { colaborador_id, cliente_id, date, hours, week_number, year, id_area, region_id, pais_id });
 
     if (!colaborador_id || !cliente_id || !date || hours === null || !week_number || !year) {
         return res.status(400).json({ error: 'Datos inválidos o incompletos' });
@@ -1093,7 +1100,10 @@ app.post('/api/allocations', requireAdmin, (req, res) => {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [colaborador_id, cliente_id, date, hours, week_number, year, id_area, region_id, pais_id],
         function(err) {
-            if (err) return res.status(500).json({ error: 'Error del servidor' });
+            if (err) {
+                console.error('[POST /api/allocations] Error:', err.message);
+                return res.status(500).json({ error: 'Error del servidor', details: err.message });
+            }
             res.json({ message: 'Asignación creada', id: this.lastID });
         }
     );
@@ -1110,8 +1120,15 @@ app.put('/api/allocations/:id', requireAdmin, (req, res) => {
     const week_number = validateWeek(req.body.week_number);
     const year = validateYear(req.body.year);
     const id_area = req.body.id_area === null || req.body.id_area === '' ? null : validateId(req.body.id_area);
-    const region_id = req.body.region_id === null || req.body.region_id === '' ? null : validateId(req.body.region_id);
-    const pais_id = req.body.pais_id === null || req.body.pais_id === '' ? null : validateId(req.body.pais_id);
+    // Handle region_id and pais_id - convert null/undefined/empty to null for PostgreSQL
+    const region_id = req.body.region_id !== null && req.body.region_id !== undefined && req.body.region_id !== ''
+        ? validateId(req.body.region_id)
+        : null;
+    const pais_id = req.body.pais_id !== null && req.body.pais_id !== undefined && req.body.pais_id !== ''
+        ? validateId(req.body.pais_id)
+        : null;
+
+    console.log('[PUT /api/allocations] Received:', { id, colaborador_id, cliente_id, date, hours, week_number, year, id_area, region_id, pais_id });
 
     if (!colaborador_id || !cliente_id || !date || hours === null || !week_number || !year) {
         return res.status(400).json({ error: 'Datos inválidos o incompletos' });
@@ -1123,7 +1140,10 @@ app.put('/api/allocations/:id', requireAdmin, (req, res) => {
          WHERE id = ?`,
         [colaborador_id, cliente_id, date, hours, week_number, year, id_area, region_id, pais_id, id],
         function(err) {
-            if (err) return res.status(500).json({ error: 'Error del servidor' });
+            if (err) {
+                console.error('[PUT /api/allocations] Error:', err.message);
+                return res.status(500).json({ error: 'Error del servidor', details: err.message });
+            }
             if (this.changes === 0) {
                 return res.status(404).json({ error: 'Asignación no encontrada' });
             }

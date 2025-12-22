@@ -808,7 +808,7 @@ const app = {
 
             // Create new allocations copying from previous day
             for (const alloc of prevDayAllocations) {
-                await fetch('/api/allocations', {
+                const response = await fetch('/api/allocations', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
@@ -819,9 +819,16 @@ const app = {
                         hours: alloc.hours,
                         week_number: targetWeek,
                         year: targetYear,
-                        id_area: areaId
+                        id_area: areaId,
+                        region_id: regionId && regionId !== '' ? parseInt(regionId) : (alloc.region_id || null),
+                        pais_id: paisId && paisId !== '' ? parseInt(paisId) : (alloc.pais_id || null)
                     })
                 });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('[Copy] Error creating allocation:', errorText);
+                    throw new Error('Error al crear asignación copiada');
+                }
             }
 
             // Refresh planning grid
@@ -1510,8 +1517,10 @@ const app = {
         const regionSelect = document.getElementById('plan-region');
         const paisSelect = document.getElementById('plan-pais');
         const id_area = areaSelect && areaSelect.value ? parseInt(areaSelect.value) : this.state.selectedAreaId;
-        const region_id = regionSelect && regionSelect.value ? parseInt(regionSelect.value) : null;
-        const pais_id = paisSelect && paisSelect.value ? parseInt(paisSelect.value) : null;
+        const regionVal = regionSelect?.value;
+        const paisVal = paisSelect?.value;
+        const region_id = regionVal && regionVal !== '' && !isNaN(parseInt(regionVal)) ? parseInt(regionVal) : null;
+        const pais_id = paisVal && paisVal !== '' && !isNaN(parseInt(paisVal)) ? parseInt(paisVal) : null;
 
         console.log('[Allocation] Guardando:', { id, colaboradorId, clienteId, hours, date, year, week, id_area, region_id, pais_id });
 
