@@ -309,6 +309,7 @@ const app = {
         const navPlanning = document.getElementById('nav-planning');
         const navViewer = document.getElementById('nav-viewer');
         const navConfig = document.getElementById('nav-config');
+        const navComparativo = document.getElementById('nav-comparativo');
 
         // Config tabs that should be hidden for area-restricted admins
         const tabUsuarios = document.getElementById('tab-usuarios');
@@ -323,10 +324,11 @@ const app = {
         const tabCorMapeo = document.getElementById('tab-cor-mapeo');
 
         if (user.role === 'visualizador') {
-            // Hide non-viewer sections
+            // Hide non-viewer sections - visualizador only sees Visor
             if (navDashboard) navDashboard.style.display = 'none';
             if (navPlanning) navPlanning.style.display = 'none';
             if (navConfig) navConfig.style.display = 'none';
+            if (navComparativo) navComparativo.style.display = 'none';
             if (navViewer) navViewer.style.display = 'inline-block';
         } else {
             // Show all sections for admin
@@ -334,6 +336,7 @@ const app = {
             if (navPlanning) navPlanning.style.display = 'inline-block';
             if (navViewer) navViewer.style.display = 'inline-block';
             if (navConfig) navConfig.style.display = 'inline-block';
+            if (navComparativo) navComparativo.style.display = 'inline-block';
 
             // If admin has area assigned, hide certain config tabs
             if (user.id_area) {
