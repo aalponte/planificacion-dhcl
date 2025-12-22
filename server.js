@@ -1243,15 +1243,34 @@ app.delete('/api/allocations/collaborator/:colaborador_id/week/:year/:week', req
     const colaborador_id = validateId(req.params.colaborador_id);
     const year = validateYear(req.params.year);
     const week = validateWeek(req.params.week);
+    const id_area = req.query.id_area ? validateId(req.query.id_area) : null;
+    const region_id = req.query.region_id ? validateId(req.query.region_id) : null;
+    const pais_id = req.query.pais_id ? validateId(req.query.pais_id) : null;
 
     if (!colaborador_id || !year || !week) {
         return res.status(400).json({ error: 'Datos inválidos' });
     }
 
-    db.run(
-        'DELETE FROM allocations WHERE colaborador_id = ? AND year = ? AND week_number = ?',
-        [colaborador_id, year, week],
-        function(err) {
+    // Build query with optional filters
+    let sql = 'DELETE FROM allocations WHERE colaborador_id = ? AND year = ? AND week_number = ?';
+    const params = [colaborador_id, year, week];
+
+    if (id_area) {
+        sql += ' AND id_area = ?';
+        params.push(id_area);
+    }
+
+    if (region_id) {
+        sql += ' AND region_id = ?';
+        params.push(region_id);
+    }
+
+    if (pais_id) {
+        sql += ' AND pais_id = ?';
+        params.push(pais_id);
+    }
+
+    db.run(sql, params, function(err) {
             if (err) return res.status(500).json({ error: 'Error del servidor' });
             res.json({
                 message: `Eliminadas ${this.changes} asignaciones`,
@@ -1265,18 +1284,30 @@ app.delete('/api/allocations/week/:year/:week', requireAdmin, (req, res) => {
     const year = validateYear(req.params.year);
     const week = validateWeek(req.params.week);
     const id_area = req.query.id_area ? validateId(req.query.id_area) : null;
+    const region_id = req.query.region_id ? validateId(req.query.region_id) : null;
+    const pais_id = req.query.pais_id ? validateId(req.query.pais_id) : null;
 
     if (!year || !week) {
         return res.status(400).json({ error: 'Datos inválidos' });
     }
 
-    // Build query with optional area filter
+    // Build query with optional filters
     let sql = 'DELETE FROM allocations WHERE year = ? AND week_number = ?';
     const params = [year, week];
 
     if (id_area) {
         sql += ' AND id_area = ?';
         params.push(id_area);
+    }
+
+    if (region_id) {
+        sql += ' AND region_id = ?';
+        params.push(region_id);
+    }
+
+    if (pais_id) {
+        sql += ' AND pais_id = ?';
+        params.push(pais_id);
     }
 
     db.run(sql, params, function(err) {

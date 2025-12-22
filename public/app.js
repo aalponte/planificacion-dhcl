@@ -1821,13 +1821,24 @@ const app = {
     async deleteCollaboratorPlanning(colaborador_id, colaborador_name) {
         const year = parseInt(document.getElementById('plan-year').value);
         const week = parseInt(document.getElementById('plan-week').value);
+        const id_area = document.getElementById('plan-area')?.value;
+        const region_id = document.getElementById('plan-region')?.value;
+        const pais_id = document.getElementById('plan-pais')?.value;
 
         if (!confirm(`¿Eliminar TODA la planificación de ${colaborador_name} para la semana ${week}/${year}?\n\nEsta acción no se puede deshacer.`)) {
             return;
         }
 
         try {
-            const response = await fetch(`/api/allocations/collaborator/${colaborador_id}/week/${year}/${week}`, {
+            // Include all filters in URL
+            let url = `/api/allocations/collaborator/${colaborador_id}/week/${year}/${week}`;
+            const params = [];
+            if (id_area) params.push(`id_area=${id_area}`);
+            if (region_id) params.push(`region_id=${region_id}`);
+            if (pais_id) params.push(`pais_id=${pais_id}`);
+            if (params.length > 0) url += '?' + params.join('&');
+
+            const response = await fetch(url, {
                 method: 'DELETE',
                 credentials: 'include'
             });
@@ -1853,23 +1864,34 @@ const app = {
         const year = parseInt(document.getElementById('plan-year').value);
         const week = parseInt(document.getElementById('plan-week').value);
         const id_area = document.getElementById('plan-area')?.value;
+        const region_id = document.getElementById('plan-region')?.value;
+        const pais_id = document.getElementById('plan-pais')?.value;
         const areaName = document.getElementById('plan-area')?.selectedOptions[0]?.text || 'área seleccionada';
+        const regionName = document.getElementById('plan-region')?.selectedOptions[0]?.text || '';
+        const paisName = document.getElementById('plan-pais')?.selectedOptions[0]?.text || '';
 
-        if (!confirm(`⚠️ ¿Eliminar TODA la planificación de la semana ${week}/${year} para ${areaName}?\n\nEsto eliminará las asignaciones de TODOS los colaboradores de esta área.\n\n¡Esta acción NO se puede deshacer!`)) {
+        // Build filter description for confirmation
+        let filterDesc = areaName;
+        if (regionName && regionName !== 'Todas las Regiones') filterDesc += `, ${regionName}`;
+        if (paisName && paisName !== 'Todos los Países') filterDesc += `, ${paisName}`;
+
+        if (!confirm(`⚠️ ¿Eliminar TODA la planificación de la semana ${week}/${year} para ${filterDesc}?\n\nEsto eliminará las asignaciones de TODOS los colaboradores con estos filtros.\n\n¡Esta acción NO se puede deshacer!`)) {
             return;
         }
 
         // Double confirmation for safety
-        if (!confirm(`¿Estás COMPLETAMENTE SEGURO de eliminar toda la semana ${week}/${year} para ${areaName}?`)) {
+        if (!confirm(`¿Estás COMPLETAMENTE SEGURO de eliminar toda la semana ${week}/${year} para ${filterDesc}?`)) {
             return;
         }
 
         try {
-            // Include area filter in URL
+            // Include all filters in URL
             let url = `/api/allocations/week/${year}/${week}`;
-            if (id_area) {
-                url += `?id_area=${id_area}`;
-            }
+            const params = [];
+            if (id_area) params.push(`id_area=${id_area}`);
+            if (region_id) params.push(`region_id=${region_id}`);
+            if (pais_id) params.push(`pais_id=${pais_id}`);
+            if (params.length > 0) url += '?' + params.join('&');
 
             const response = await fetch(url, {
                 method: 'DELETE',
