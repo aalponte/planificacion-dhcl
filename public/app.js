@@ -316,6 +316,12 @@ const app = {
         const tabTipos = document.getElementById('tab-tipos');
         const tabAreas = document.getElementById('tab-areas');
 
+        // Config tabs only for full admins (no area assigned)
+        const tabRegiones = document.getElementById('tab-regiones');
+        const tabPaises = document.getElementById('tab-paises');
+        const tabConexionCor = document.getElementById('tab-conexion-cor');
+        const tabMapeoCor = document.getElementById('tab-mapeo-cor');
+
         if (user.role === 'visualizador') {
             // Hide non-viewer sections
             if (navDashboard) navDashboard.style.display = 'none';
@@ -335,12 +341,21 @@ const app = {
                 if (tabProyectos) tabProyectos.style.display = 'none';
                 if (tabTipos) tabTipos.style.display = 'none';
                 if (tabAreas) tabAreas.style.display = 'none';
+                // Hide region/country/COR tabs for area-restricted admins
+                if (tabRegiones) tabRegiones.style.display = 'none';
+                if (tabPaises) tabPaises.style.display = 'none';
+                if (tabConexionCor) tabConexionCor.style.display = 'none';
+                if (tabMapeoCor) tabMapeoCor.style.display = 'none';
             } else {
                 // Full admin - show all tabs
                 if (tabUsuarios) tabUsuarios.style.display = 'inline-block';
                 if (tabProyectos) tabProyectos.style.display = 'inline-block';
                 if (tabTipos) tabTipos.style.display = 'inline-block';
                 if (tabAreas) tabAreas.style.display = 'inline-block';
+                if (tabRegiones) tabRegiones.style.display = 'inline-block';
+                if (tabPaises) tabPaises.style.display = 'inline-block';
+                if (tabConexionCor) tabConexionCor.style.display = 'inline-block';
+                if (tabMapeoCor) tabMapeoCor.style.display = 'inline-block';
             }
         }
     },
@@ -3299,6 +3314,19 @@ const app = {
     initComparativo() {
         // Initialize date range to last week
         this.initCompDateRange();
+
+        // If user has area assigned, set it and disable the selector
+        const user = this.state.currentUser;
+        const areaSelect = document.getElementById('comp-area');
+        if (user && user.id_area && areaSelect) {
+            areaSelect.value = user.id_area;
+            areaSelect.disabled = true;
+            // Also disable region and pais selectors for area-restricted users
+            const regionSelect = document.getElementById('comp-region');
+            const paisSelect = document.getElementById('comp-pais');
+            if (regionSelect) regionSelect.disabled = true;
+            if (paisSelect) paisSelect.disabled = true;
+        }
 
         this.loadComparativo();
     },
