@@ -88,6 +88,8 @@ CREATE TABLE IF NOT EXISTS clientes (
     id_proyecto INTEGER REFERENCES proyectos(id) ON DELETE SET NULL,
     id_tipo_proyecto INTEGER REFERENCES tipo_proyecto(id) ON DELETE SET NULL,
     id_area INTEGER REFERENCES areas(id) ON DELETE SET NULL,
+    region_id INTEGER REFERENCES regiones(id) ON DELETE SET NULL,
+    pais_id INTEGER REFERENCES paises(id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -355,6 +357,56 @@ async function runMigrations() {
 
             if (updateResult.rowCount > 0) {
                 console.log(`Migration: Set Global for ${updateResult.rowCount} allocations`);
+            }
+        }
+
+        // Migration 8: Add region_id column to clientes if not exists
+        const checkClienteRegion = await pool.query(`
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = 'clientes' AND column_name = 'region_id'
+        `);
+
+        if (checkClienteRegion.rows.length === 0) {
+            await pool.query(`
+                ALTER TABLE clientes
+                ADD COLUMN region_id INTEGER REFERENCES regiones(id) ON DELETE SET NULL
+            `);
+            console.log('Migration: Added region_id column to clientes');
+        }
+
+        // Migration 9: Add pais_id column to clientes if not exists
+        const checkClientePais = await pool.query(`
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = 'clientes' AND column_name = 'pais_id'
+        `);
+
+        if (checkClientePais.rows.length === 0) {
+            await pool.query(`
+                ALTER TABLE clientes
+                ADD COLUMN pais_id INTEGER REFERENCES paises(id) ON DELETE SET NULL
+            `);
+            console.log('Migration: Added pais_id column to clientes');
+        }
+
+        // Create indexes for clientes region/pais
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_clientes_region ON clientes(region_id)`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_clientes_pais ON clientes(pais_id)`);
+
+        // Migration 10: Set Global for clientes without region/pais
+        if (globalRegion.rows.length > 0 && globalPais.rows.length > 0) {
+            const regionId = globalRegion.rows[0].id;
+            const paisId = globalPais.rows[0].id;
+
+            const updateClientes = await pool.query(`
+                UPDATE clientes
+                SET region_id = $1, pais_id = $2
+                WHERE region_id IS NULL OR pais_id IS NULL
+            `, [regionId, paisId]);
+
+            if (updateClientes.rowCount > 0) {
+                console.log(`Migration: Set Global for ${updateClientes.rowCount} clientes`);
             }
         }
 
