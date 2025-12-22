@@ -59,12 +59,16 @@ const app = {
         proyectos: [],
         tipos: [],
         areas: [],
+        regiones: [],
+        paises: [],
         usuarios: [],
         currentAllocations: [],
         editingRecord: null,
         importingTable: null,
         currentUser: null, // Stores logged-in user info
-        selectedAreaId: null // Currently selected area for filtering
+        selectedAreaId: null, // Currently selected area for filtering
+        selectedRegionId: null,
+        selectedPaisId: null
     },
 
     // XSS Protection - Escape HTML entities
@@ -356,17 +360,20 @@ const app = {
             else if (view === 'planning') this.loadPlanning();
             else if (view === 'dashboard') this.loadDashboard();
             else if (view === 'viewer') this.loadViewer();
+            else if (view === 'comparativo') this.initComparativo();
         }
     },
 
     async loadInitialData() {
         try {
-            const [colabRes, clientesRes, proyRes, tiposRes, areasRes] = await Promise.all([
+            const [colabRes, clientesRes, proyRes, tiposRes, areasRes, regionesRes, paisesRes] = await Promise.all([
                 fetch('/api/config/colaboradores', { credentials: 'include' }),
                 fetch('/api/config/clientes', { credentials: 'include' }),
                 fetch('/api/config/proyectos', { credentials: 'include' }),
                 fetch('/api/config/tipos', { credentials: 'include' }),
-                fetch('/api/config/areas', { credentials: 'include' })
+                fetch('/api/config/areas/full', { credentials: 'include' }),
+                fetch('/api/config/regiones', { credentials: 'include' }),
+                fetch('/api/config/paises', { credentials: 'include' })
             ]);
 
             // Check for auth errors
@@ -382,6 +389,8 @@ const app = {
             this.state.proyectos = await proyRes.json();
             this.state.tipos = await tiposRes.json();
             this.state.areas = await areasRes.json();
+            this.state.regiones = await regionesRes.json();
+            this.state.paises = await paisesRes.json();
 
             // Sort areas by ID ascending to ensure the lowest ID is first
             this.state.areas.sort((a, b) => a.id - b.id);
@@ -394,7 +403,8 @@ const app = {
                 this.state.selectedAreaId = this.state.areas[0].id;
             }
 
-            // Populate area selectors
+            // Populate selectors
+            this.populateRegionSelectors();
             this.populateAreaSelectors();
 
             console.log('[App] Initial data loaded successfully');
@@ -444,9 +454,13 @@ const app = {
         const year = document.getElementById('plan-year')?.value || this.state.currentYear;
         const week = document.getElementById('plan-week')?.value || this.state.currentWeek;
         const areaId = document.getElementById('plan-area')?.value || this.state.selectedAreaId;
+        const regionId = document.getElementById('plan-region')?.value || null;
+        const paisId = document.getElementById('plan-pais')?.value || null;
         try {
             let url = `/api/allocations?year=${year}&week=${week}`;
             if (areaId) url += `&id_area=${areaId}`;
+            if (regionId) url += `&region_id=${regionId}`;
+            if (paisId) url += `&pais_id=${paisId}`;
             const response = await fetch(url, {
                 credentials: 'include'
             });
@@ -466,6 +480,8 @@ const app = {
         const yearSelect = document.getElementById('viewer-year');
         const weekSelect = document.getElementById('viewer-week');
         const areaSelect = document.getElementById('viewer-area');
+        const regionSelect = document.getElementById('viewer-region');
+        const paisSelect = document.getElementById('viewer-pais');
 
         if (yearSelect && yearSelect.options.length === 0) {
             this.populateViewerYearSelector();
@@ -477,10 +493,14 @@ const app = {
         const year = yearSelect?.value || this.state.currentYear;
         const week = weekSelect?.value || this.state.currentWeek;
         const areaId = areaSelect?.value || this.state.selectedAreaId;
+        const regionId = regionSelect?.value || null;
+        const paisId = paisSelect?.value || null;
 
         try {
             let url = `/api/allocations?year=${year}&week=${week}`;
             if (areaId) url += `&id_area=${areaId}`;
+            if (regionId) url += `&region_id=${regionId}`;
+            if (paisId) url += `&pais_id=${paisId}`;
             const response = await fetch(url, {
                 credentials: 'include'
             });
@@ -708,8 +728,10 @@ const app = {
         }
         const prevDateStr = prevDate.toISOString().split('T')[0];
 
-        // Get area id
+        // Get area id and region/pais
         const areaId = document.getElementById('plan-area')?.value;
+        const regionId = document.getElementById('plan-region')?.value;
+        const paisId = document.getElementById('plan-pais')?.value;
         if (!areaId) {
             alert('Por favor selecciona un área primero.');
             return;
@@ -720,7 +742,10 @@ const app = {
         const prevWeek = app.getISOWeek(prevDate);
 
         try {
-            const response = await fetch(`/api/allocations?year=${year}&week=${prevWeek}&id_area=${areaId}`, {
+            let fetchUrl = `/api/allocations?year=${year}&week=${prevWeek}&id_area=${areaId}`;
+            if (regionId) fetchUrl += `&region_id=${regionId}`;
+            if (paisId) fetchUrl += `&pais_id=${paisId}`;
+            const response = await fetch(fetchUrl, {
                 credentials: 'include'
             });
             const allocations = await response.json();
@@ -855,15 +880,23 @@ const app = {
     switchConfigTab(tab) {
         this.state.currentConfigTab = tab;
         document.querySelectorAll('.view-tab').forEach(el => el.classList.remove('active'));
-        document.getElementById(`tab-${tab}`).classList.add('active');
+        document.getElementById(`tab-${tab}`)?.classList.add('active');
         document.querySelectorAll('.config-tab-content').forEach(el => el.classList.add('hidden'));
-        document.getElementById(`config-${tab}`).classList.remove('hidden');
+        document.getElementById(`config-${tab}`)?.classList.remove('hidden');
 
-        // Load usuarios data if switching to that tab
+        // Load data based on tab
         if (tab === 'usuarios') {
             this.loadUsuarios().then(() => this.renderConfigTable(tab));
+        } else if (tab === 'regiones') {
+            this.loadRegiones();
+        } else if (tab === 'paises') {
+            this.loadRegiones().then(() => this.loadPaises());
         } else if (tab === 'areas') {
-            this.loadAreas().then(() => this.renderConfigTable(tab));
+            this.loadRegiones().then(() => this.loadAreas());
+        } else if (tab === 'cor-config') {
+            this.loadCorConfig();
+        } else if (tab === 'cor-mapeo') {
+            this.showCorMapeoTab('proyectos');
         } else {
             this.renderConfigTable(tab);
         }
@@ -950,11 +983,13 @@ const app = {
         data.forEach(item => {
             const tr = document.createElement('tr');
             const areaLabel = item.area_name ? this.escapeHtml(item.area_name) : '<em style="color:#999;">-</em>';
+            const regionLabel = item.region_name ? this.escapeHtml(item.region_name) : '<em style="color:#999;">-</em>';
+            const paisLabel = item.pais_name ? this.escapeHtml(item.pais_name) : '<em style="color:#999;">-</em>';
             tr.innerHTML = `
                 <td><input type="checkbox" class="row-checkbox" data-id="${parseInt(item.id)}"></td>
                 <td>${parseInt(item.id)}</td>
                 <td>${this.escapeHtml(item.name)}</td>
-                ${table === 'clientes' ? `<td><span class="text-red">${this.escapeHtml(item.proyecto_name) || '-'}</span></td><td><span class="text-red">${this.escapeHtml(item.tipo_name) || '-'}</span></td><td>${areaLabel}</td>` : ''}
+                ${table === 'clientes' ? `<td>${regionLabel}</td><td>${paisLabel}</td><td><span class="text-red">${this.escapeHtml(item.proyecto_name) || '-'}</span></td><td><span class="text-red">${this.escapeHtml(item.tipo_name) || '-'}</span></td><td>${areaLabel}</td>` : ''}
                 <td style="text-align: right;">
                     <button class="btn-icon" onclick="app.editRecord('${this.escapeHtml(table)}', ${parseInt(item.id)})"><i class="fas fa-edit"></i></button>
                     <button class="btn-icon" onclick="app.deleteRecord('${this.escapeHtml(table)}', ${parseInt(item.id)})"><i class="fas fa-trash"></i></button>
@@ -1080,35 +1115,74 @@ const app = {
             'clientes': 'Cliente',
             'proyectos': 'Proyecto',
             'tipos': 'Tipo',
-            'areas': 'Área'
+            'areas': 'Área',
+            'regiones': 'Región',
+            'paises': 'País'
         };
         document.getElementById('modal-title').textContent = `Añadir ${tableLabels[table] || table}`;
         document.getElementById('record-name').value = '';
-        document.getElementById('cliente-fields').classList.toggle('hidden', table !== 'clientes');
 
-        // Show/hide colaborador area field
-        const colaboradorAreaField = document.getElementById('colaborador-area-field');
-        if (colaboradorAreaField) {
-            colaboradorAreaField.classList.toggle('hidden', table !== 'colaboradores');
-            if (table === 'colaboradores') {
-                const areaSelect = document.getElementById('colaborador-area');
-                areaSelect.innerHTML = '<option value="">-- Sin área --</option>' + this.state.areas.map(a => `<option value="${a.id}">${this.escapeHtml(a.name)}</option>`).join('');
-                // Default to currently selected area
-                if (this.state.selectedAreaId) {
-                    areaSelect.value = this.state.selectedAreaId;
-                }
+        // Hide all conditional fields first
+        document.getElementById('cliente-fields').classList.add('hidden');
+        document.getElementById('colaborador-area-field')?.classList.add('hidden');
+        document.getElementById('region-fields')?.classList.add('hidden');
+        document.getElementById('pais-fields')?.classList.add('hidden');
+        document.getElementById('area-fields')?.classList.add('hidden');
+
+        // Show fields based on table type
+        if (table === 'regiones') {
+            document.getElementById('region-fields').classList.remove('hidden');
+            document.getElementById('region-es-global').checked = false;
+        } else if (table === 'paises') {
+            document.getElementById('pais-fields').classList.remove('hidden');
+            document.getElementById('pais-es-global').checked = false;
+            // Populate region selector
+            const regionSelect = document.getElementById('pais-region');
+            regionSelect.innerHTML = '<option value="">-- Seleccionar --</option>' +
+                this.state.regiones.map(r => `<option value="${r.id}">${this.escapeHtml(r.name)}</option>`).join('');
+        } else if (table === 'areas') {
+            document.getElementById('area-fields').classList.remove('hidden');
+            // Populate region selector
+            const regionSelect = document.getElementById('area-region');
+            regionSelect.innerHTML = '<option value="">-- Sin región --</option>' +
+                this.state.regiones.map(r => `<option value="${r.id}">${this.escapeHtml(r.name)}</option>`).join('');
+            document.getElementById('area-pais').innerHTML = '<option value="">-- Sin país --</option>';
+        } else if (table === 'colaboradores') {
+            document.getElementById('colaborador-area-field').classList.remove('hidden');
+            const areaSelect = document.getElementById('colaborador-area');
+            areaSelect.innerHTML = '<option value="">-- Sin área --</option>' + this.state.areas.map(a => `<option value="${a.id}">${this.escapeHtml(a.name)}</option>`).join('');
+            if (this.state.selectedAreaId) {
+                areaSelect.value = this.state.selectedAreaId;
             }
-        }
-
-        if (table === 'clientes') {
+        } else if (table === 'clientes') {
+            document.getElementById('cliente-fields').classList.remove('hidden');
             const proySelect = document.getElementById('record-proyecto');
             const tipoSelect = document.getElementById('record-tipo');
             const areaSelect = document.getElementById('record-area');
+            const regionSelect = document.getElementById('cliente-region');
+            const paisSelect = document.getElementById('cliente-pais');
+
+            // Populate region selector and set Global as default
+            const globalRegion = this.state.regiones.find(r => r.es_global === 1 || r.es_global === true);
+            regionSelect.innerHTML = '<option value="">-- Seleccionar --</option>' +
+                this.state.regiones.map(r => `<option value="${r.id}">${this.escapeHtml(r.name)}</option>`).join('');
+            if (globalRegion) {
+                regionSelect.value = globalRegion.id;
+                // Populate países for Global region
+                this.populatePaisSelectors(globalRegion.id, ['cliente-pais']).then(() => {
+                    const globalPais = this.state.paises.find(p => p.es_global === 1 || p.es_global === true);
+                    if (globalPais) {
+                        paisSelect.value = globalPais.id;
+                    }
+                });
+            } else {
+                paisSelect.innerHTML = '<option value="">-- Seleccionar --</option>';
+            }
+
             proySelect.innerHTML = '<option value="">-- Seleccionar --</option>' + this.state.proyectos.map(p => `<option value="${p.id}">${this.escapeHtml(p.name)}</option>`).join('');
             tipoSelect.innerHTML = '<option value="">-- Seleccionar --</option>' + this.state.tipos.map(t => `<option value="${t.id}">${this.escapeHtml(t.name)}</option>`).join('');
             if (areaSelect) {
                 areaSelect.innerHTML = '<option value="">-- Seleccionar --</option>' + this.state.areas.map(a => `<option value="${a.id}">${this.escapeHtml(a.name)}</option>`).join('');
-                // Default to currently selected area
                 if (this.state.selectedAreaId) {
                     areaSelect.value = this.state.selectedAreaId;
                 }
@@ -1126,27 +1200,72 @@ const app = {
             'clientes': 'Cliente',
             'proyectos': 'Proyecto',
             'tipos': 'Tipo',
-            'areas': 'Área'
+            'areas': 'Área',
+            'regiones': 'Región',
+            'paises': 'País'
         };
         document.getElementById('modal-title').textContent = `Editar ${tableLabels[table] || table}`;
         document.getElementById('record-name').value = item.name;
-        document.getElementById('cliente-fields').classList.toggle('hidden', table !== 'clientes');
 
-        // Show/hide colaborador area field
-        const colaboradorAreaField = document.getElementById('colaborador-area-field');
-        if (colaboradorAreaField) {
-            colaboradorAreaField.classList.toggle('hidden', table !== 'colaboradores');
-            if (table === 'colaboradores') {
-                const areaSelect = document.getElementById('colaborador-area');
-                areaSelect.innerHTML = '<option value="">-- Sin área --</option>' + this.state.areas.map(a => `<option value="${a.id}">${this.escapeHtml(a.name)}</option>`).join('');
-                areaSelect.value = item.id_area || '';
+        // Hide all conditional fields first
+        document.getElementById('cliente-fields').classList.add('hidden');
+        document.getElementById('colaborador-area-field')?.classList.add('hidden');
+        document.getElementById('region-fields')?.classList.add('hidden');
+        document.getElementById('pais-fields')?.classList.add('hidden');
+        document.getElementById('area-fields')?.classList.add('hidden');
+
+        // Show fields based on table type
+        if (table === 'regiones') {
+            document.getElementById('region-fields').classList.remove('hidden');
+            document.getElementById('region-es-global').checked = item.es_global || false;
+        } else if (table === 'paises') {
+            document.getElementById('pais-fields').classList.remove('hidden');
+            document.getElementById('pais-es-global').checked = item.es_global || false;
+            const regionSelect = document.getElementById('pais-region');
+            regionSelect.innerHTML = '<option value="">-- Seleccionar --</option>' +
+                this.state.regiones.map(r => `<option value="${r.id}">${this.escapeHtml(r.name)}</option>`).join('');
+            regionSelect.value = item.region_id || '';
+        } else if (table === 'areas') {
+            document.getElementById('area-fields').classList.remove('hidden');
+            const regionSelect = document.getElementById('area-region');
+            regionSelect.innerHTML = '<option value="">-- Sin región --</option>' +
+                this.state.regiones.map(r => `<option value="${r.id}">${this.escapeHtml(r.name)}</option>`).join('');
+            regionSelect.value = item.region_id || '';
+            // Load countries for the selected region
+            if (item.region_id) {
+                this.populatePaisSelectors(item.region_id, ['area-pais']).then(() => {
+                    document.getElementById('area-pais').value = item.pais_id || '';
+                });
+            } else {
+                document.getElementById('area-pais').innerHTML = '<option value="">-- Sin país --</option>';
             }
-        }
-
-        if (table === 'clientes') {
+        } else if (table === 'colaboradores') {
+            document.getElementById('colaborador-area-field').classList.remove('hidden');
+            const areaSelect = document.getElementById('colaborador-area');
+            areaSelect.innerHTML = '<option value="">-- Sin área --</option>' + this.state.areas.map(a => `<option value="${a.id}">${this.escapeHtml(a.name)}</option>`).join('');
+            areaSelect.value = item.id_area || '';
+        } else if (table === 'clientes') {
+            document.getElementById('cliente-fields').classList.remove('hidden');
             const proySelect = document.getElementById('record-proyecto');
             const tipoSelect = document.getElementById('record-tipo');
             const areaSelect = document.getElementById('record-area');
+            const regionSelect = document.getElementById('cliente-region');
+            const paisSelect = document.getElementById('cliente-pais');
+
+            // Populate and set region
+            regionSelect.innerHTML = '<option value="">-- Seleccionar --</option>' +
+                this.state.regiones.map(r => `<option value="${r.id}">${this.escapeHtml(r.name)}</option>`).join('');
+            regionSelect.value = item.region_id || '';
+
+            // Populate países for the selected region
+            if (item.region_id) {
+                this.populatePaisSelectors(item.region_id, ['cliente-pais']).then(() => {
+                    paisSelect.value = item.pais_id || '';
+                });
+            } else {
+                paisSelect.innerHTML = '<option value="">-- Seleccionar --</option>';
+            }
+
             proySelect.innerHTML = '<option value="">-- Seleccionar --</option>' + this.state.proyectos.map(p => `<option value="${p.id}">${this.escapeHtml(p.name)}</option>`).join('');
             tipoSelect.innerHTML = '<option value="">-- Seleccionar --</option>' + this.state.tipos.map(t => `<option value="${t.id}">${this.escapeHtml(t.name)}</option>`).join('');
             proySelect.value = item.proyecto_id || '';
@@ -1169,17 +1288,37 @@ const app = {
         if (!name) return;
         const table = this.state.editingRecord?.table || this.state.currentConfigTab;
         const body = { name };
-        if (table === 'clientes') {
-            // Fix: Map dropdown values to the correct backend field names
+
+        // Add fields based on table type
+        if (table === 'regiones') {
+            body.es_global = document.getElementById('region-es-global').checked;
+        } else if (table === 'paises') {
+            const regionId = document.getElementById('pais-region').value;
+            if (!regionId) {
+                showToast('Debe seleccionar una región', 'error');
+                return;
+            }
+            body.region_id = parseInt(regionId);
+            body.es_global = document.getElementById('pais-es-global').checked;
+        } else if (table === 'areas') {
+            const regionId = document.getElementById('area-region').value;
+            const paisId = document.getElementById('area-pais').value;
+            body.region_id = regionId ? parseInt(regionId) : null;
+            body.pais_id = paisId ? parseInt(paisId) : null;
+        } else if (table === 'clientes') {
+            const regionId = document.getElementById('cliente-region').value;
+            const paisId = document.getElementById('cliente-pais').value;
+            body.region_id = regionId ? parseInt(regionId) : null;
+            body.pais_id = paisId ? parseInt(paisId) : null;
             body.id_proyecto = document.getElementById('record-proyecto').value || null;
             body.id_tipo_proyecto = document.getElementById('record-tipo').value || null;
             const areaSelect = document.getElementById('record-area');
             body.id_area = areaSelect && areaSelect.value ? parseInt(areaSelect.value) : null;
-        }
-        if (table === 'colaboradores') {
+        } else if (table === 'colaboradores') {
             const areaSelect = document.getElementById('colaborador-area');
             body.id_area = areaSelect && areaSelect.value ? parseInt(areaSelect.value) : null;
         }
+
         try {
             if (this.state.editingRecord) {
                 await fetch(`/api/config/${table}/${this.state.editingRecord.id}`, {
@@ -1196,8 +1335,19 @@ const app = {
                     body: JSON.stringify(body)
                 });
             }
-            await this.loadInitialData();
-            this.renderConfigTable(table);
+
+            // Reload the appropriate data
+            if (table === 'regiones') {
+                await this.loadRegiones();
+            } else if (table === 'paises') {
+                await this.loadPaises();
+            } else if (table === 'areas') {
+                await this.loadAreas();
+            } else {
+                await this.loadInitialData();
+                this.renderConfigTable(table);
+            }
+
             this.closeModal();
             showToast(this.state.editingRecord ? 'Registro actualizado' : 'Registro creado', 'success');
         } catch (error) {
@@ -1210,8 +1360,18 @@ const app = {
         if (!confirm('¿Estás seguro de eliminar este registro?')) return;
         try {
             await fetch(`/api/config/${table}/${id}`, { method: 'DELETE', credentials: 'include' });
-            await this.loadInitialData();
-            this.renderConfigTable(table);
+
+            // Reload appropriate data based on table
+            if (table === 'regiones') {
+                await this.loadRegiones();
+            } else if (table === 'paises') {
+                await this.loadPaises();
+            } else if (table === 'areas') {
+                await this.loadAreas();
+            } else {
+                await this.loadInitialData();
+                this.renderConfigTable(table);
+            }
             showToast('Registro eliminado', 'success');
         } catch (error) {
             console.error('[Config] Error deleting:', error);
@@ -1230,8 +1390,18 @@ const app = {
             await Promise.all(Array.from(checkboxes).map(cb =>
                 fetch(`/api/config/${table}/${cb.dataset.id}`, { method: 'DELETE', credentials: 'include' })
             ));
-            await this.loadInitialData();
-            this.renderConfigTable(table);
+
+            // Reload appropriate data based on table
+            if (table === 'regiones') {
+                await this.loadRegiones();
+            } else if (table === 'paises') {
+                await this.loadPaises();
+            } else if (table === 'areas') {
+                await this.loadAreas();
+            } else {
+                await this.loadInitialData();
+                this.renderConfigTable(table);
+            }
             showToast(`${checkboxes.length} registro(s) eliminado(s)`, 'success');
         } catch (error) {
             console.error('[Config] Error deleting:', error);
@@ -1319,15 +1489,19 @@ const app = {
         const year = parseInt(document.getElementById('plan-year').value);
         const week = parseInt(document.getElementById('plan-week').value);
         const areaSelect = document.getElementById('plan-area');
+        const regionSelect = document.getElementById('plan-region');
+        const paisSelect = document.getElementById('plan-pais');
         const id_area = areaSelect && areaSelect.value ? parseInt(areaSelect.value) : this.state.selectedAreaId;
+        const region_id = regionSelect && regionSelect.value ? parseInt(regionSelect.value) : null;
+        const pais_id = paisSelect && paisSelect.value ? parseInt(paisSelect.value) : null;
 
-        console.log('[Allocation] Guardando:', { id, colaboradorId, clienteId, hours, date, year, week, id_area });
+        console.log('[Allocation] Guardando:', { id, colaboradorId, clienteId, hours, date, year, week, id_area, region_id, pais_id });
 
         if (!clienteId || !hours || !date) {
             alert('Completa todos los campos');
             return;
         }
-        const body = { colaborador_id: colaboradorId, cliente_id: clienteId, hours, date, year, week_number: week, id_area };
+        const body = { colaborador_id: colaboradorId, cliente_id: clienteId, hours, date, year, week_number: week, id_area, region_id, pais_id };
 
         console.log('[Allocation] Body:', body);
 
@@ -1389,7 +1563,11 @@ const app = {
         const currentYear = parseInt(document.getElementById('plan-year').value);
         const currentWeek = parseInt(document.getElementById('plan-week').value);
         const areaSelect = document.getElementById('plan-area');
+        const regionSelect = document.getElementById('plan-region');
+        const paisSelect = document.getElementById('plan-pais');
         const id_area = areaSelect && areaSelect.value ? parseInt(areaSelect.value) : this.state.selectedAreaId;
+        const region_id = regionSelect && regionSelect.value ? parseInt(regionSelect.value) : null;
+        const pais_id = paisSelect && paisSelect.value ? parseInt(paisSelect.value) : null;
 
         // Calculate next week and year
         let nextWeek = currentWeek + 1;
@@ -1413,7 +1591,9 @@ const app = {
                     fromWeek: currentWeek,
                     toYear: nextYear,
                     toWeek: nextWeek,
-                    id_area
+                    id_area,
+                    region_id,
+                    pais_id
                 })
             });
 
@@ -1450,7 +1630,11 @@ const app = {
         const currentYear = parseInt(document.getElementById('plan-year').value);
         const currentWeek = parseInt(document.getElementById('plan-week').value);
         const areaSelect = document.getElementById('plan-area');
+        const regionSelect = document.getElementById('plan-region');
+        const paisSelect = document.getElementById('plan-pais');
         const id_area = areaSelect && areaSelect.value ? parseInt(areaSelect.value) : this.state.selectedAreaId;
+        const region_id = regionSelect && regionSelect.value ? parseInt(regionSelect.value) : null;
+        const pais_id = paisSelect && paisSelect.value ? parseInt(paisSelect.value) : null;
 
         // Calculate next week and year
         let nextWeek = currentWeek + 1;
@@ -1469,6 +1653,8 @@ const app = {
             // Get current week's allocations to extract unique collaborators
             let url = `/api/allocations?year=${currentYear}&week=${currentWeek}`;
             if (id_area) url += `&id_area=${id_area}`;
+            if (region_id) url += `&region_id=${region_id}`;
+            if (pais_id) url += `&pais_id=${pais_id}`;
             const response = await fetch(url, {
                 credentials: 'include'
             });
@@ -1578,7 +1764,9 @@ const app = {
                         date: dateStr,
                         week_number: nextWeek,
                         year: nextYear,
-                        id_area
+                        id_area,
+                        region_id,
+                        pais_id
                     })
                 });
 
@@ -1740,6 +1928,1336 @@ const app = {
             console.error('[Delete Week] Error:', error);
             alert('Error al eliminar planificación de la semana: ' + error.message);
         }
+    },
+
+    // ============================================
+    // REGIONES & PAÍSES Functions
+    // ============================================
+
+    async loadRegiones() {
+        try {
+            const response = await fetch('/api/config/regiones', { credentials: 'include' });
+            const regiones = await response.json();
+            this.state.regiones = regiones;
+
+            const tbody = document.getElementById('table-regiones');
+            if (!tbody) return;
+
+            tbody.innerHTML = regiones.map(r => `
+                <tr>
+                    <td><input type="checkbox" class="row-checkbox" data-id="${r.id}"></td>
+                    <td>${r.id}</td>
+                    <td>${this.escapeHtml(r.name)}</td>
+                    <td>${r.es_global ? '<span style="color: #28a745;">Sí</span>' : 'No'}</td>
+                    <td style="text-align: right;">
+                        <button class="btn-icon" onclick="app.editRecord('regiones', ${r.id})"><i class="fas fa-edit"></i></button>
+                        <button class="btn-icon text-red" onclick="app.deleteRecord('regiones', ${r.id})"><i class="fas fa-trash-alt"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+
+            // Populate region dropdowns
+            this.populateRegionSelectors();
+        } catch (error) {
+            console.error('[Regiones] Error:', error);
+        }
+    },
+
+    async loadPaises() {
+        try {
+            const regionFilter = document.getElementById('filter-paises-region')?.value || '';
+            let url = '/api/config/paises';
+            if (regionFilter) url += `?region_id=${regionFilter}`;
+
+            const response = await fetch(url, { credentials: 'include' });
+            const paises = await response.json();
+            this.state.paises = paises;
+
+            const tbody = document.getElementById('table-paises');
+            if (!tbody) return;
+
+            tbody.innerHTML = paises.map(p => `
+                <tr>
+                    <td><input type="checkbox" class="row-checkbox" data-id="${p.id}"></td>
+                    <td>${p.id}</td>
+                    <td>${this.escapeHtml(p.name)}</td>
+                    <td>${this.escapeHtml(p.region_name || '-')}</td>
+                    <td>${p.es_global ? '<span style="color: #28a745;">Sí</span>' : 'No'}</td>
+                    <td style="text-align: right;">
+                        <button class="btn-icon" onclick="app.editRecord('paises', ${p.id})"><i class="fas fa-edit"></i></button>
+                        <button class="btn-icon text-red" onclick="app.deleteRecord('paises', ${p.id})"><i class="fas fa-trash-alt"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (error) {
+            console.error('[Paises] Error:', error);
+        }
+    },
+
+    async loadAreas() {
+        try {
+            const regionFilter = document.getElementById('filter-areas-region')?.value || '';
+            const paisFilter = document.getElementById('filter-areas-pais')?.value || '';
+
+            let url = '/api/config/areas/full';
+            const params = [];
+            if (regionFilter) params.push(`region_id=${regionFilter}`);
+            if (paisFilter) params.push(`pais_id=${paisFilter}`);
+            if (params.length > 0) url += '?' + params.join('&');
+
+            const response = await fetch(url, { credentials: 'include' });
+            const areas = await response.json();
+            this.state.areas = areas;
+
+            const tbody = document.getElementById('table-areas');
+            if (!tbody) return;
+
+            tbody.innerHTML = areas.map(a => `
+                <tr>
+                    <td><input type="checkbox" class="row-checkbox" data-id="${a.id}"></td>
+                    <td>${a.id}</td>
+                    <td>${this.escapeHtml(a.name)}</td>
+                    <td>${this.escapeHtml(a.region_name || '-')}</td>
+                    <td>${this.escapeHtml(a.pais_name || '-')}</td>
+                    <td style="text-align: right;">
+                        <button class="btn-icon" onclick="app.editRecord('areas', ${a.id})"><i class="fas fa-edit"></i></button>
+                        <button class="btn-icon text-red" onclick="app.deleteRecord('areas', ${a.id})"><i class="fas fa-trash-alt"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+
+            // Also update area selectors
+            this.populateAreaSelectors();
+        } catch (error) {
+            console.error('[Areas] Error:', error);
+        }
+    },
+
+    populateRegionSelectors() {
+        const selectors = ['dash-region', 'plan-region', 'viewer-region', 'comp-region', 'filter-paises-region', 'filter-areas-region'];
+        const regiones = this.state.regiones || [];
+        const user = this.state.currentUser;
+        const userHasArea = user && user.id_area;
+
+        // Find Global region
+        const globalRegion = regiones.find(r => r.es_global === 1 || r.es_global === true);
+
+        // Determine if user's area is linked to a specific region
+        let userRegionId = null;
+        let userPaisId = null;
+        if (userHasArea) {
+            const userArea = this.state.areas.find(a => a.id === user.id_area);
+            if (userArea) {
+                userRegionId = userArea.region_id;
+                userPaisId = userArea.pais_id;
+            }
+        }
+
+        selectors.forEach(selectorId => {
+            const select = document.getElementById(selectorId);
+            if (!select) return;
+
+            // Check if this is a filter selector (config) vs main view selector
+            const isFilterSelector = selectorId.startsWith('filter-');
+
+            const currentValue = select.value;
+            select.innerHTML = '<option value="">Todas</option>';
+            regiones.forEach(r => {
+                const option = document.createElement('option');
+                option.value = r.id;
+                option.textContent = r.name;
+                select.appendChild(option);
+            });
+
+            // Set default value: user's region if assigned, or Global if exists
+            if (!isFilterSelector) {
+                if (userRegionId) {
+                    select.value = userRegionId;
+                    select.disabled = true;
+                    select.title = 'Región asignada a tu área';
+                } else if (globalRegion) {
+                    select.value = globalRegion.id;
+                }
+            } else if (currentValue) {
+                select.value = currentValue;
+            }
+        });
+
+        // Populate pais selectors for main views
+        this.initializePaisSelectors(userRegionId, userPaisId, userHasArea, globalRegion);
+    },
+
+    async initializePaisSelectors(userRegionId, userPaisId, userHasArea, globalRegion) {
+        const mainPaisSelectors = ['dash-pais', 'plan-pais', 'viewer-pais', 'comp-pais'];
+        const globalPais = this.state.paises.find(p => p.es_global === 1 || p.es_global === true);
+
+        for (const selectorId of mainPaisSelectors) {
+            const select = document.getElementById(selectorId);
+            if (!select) continue;
+
+            const regionSelectorId = selectorId.replace('-pais', '-region');
+            const regionSelect = document.getElementById(regionSelectorId);
+            const regionId = userRegionId || regionSelect?.value || (globalRegion ? globalRegion.id : null);
+
+            if (regionId) {
+                await this.populatePaisSelectors(regionId, [selectorId]);
+            }
+
+            // Set default value
+            if (userPaisId) {
+                select.value = userPaisId;
+                select.disabled = true;
+                select.title = 'País asignado a tu área';
+            } else if (globalPais && select.querySelector(`option[value="${globalPais.id}"]`)) {
+                select.value = globalPais.id;
+            }
+        }
+    },
+
+    async populatePaisSelectors(regionId, selectorIds) {
+        try {
+            let url = '/api/config/paises';
+            if (regionId) url += `?region_id=${regionId}`;
+
+            const response = await fetch(url, { credentials: 'include' });
+            const paises = await response.json();
+
+            selectorIds.forEach(selectorId => {
+                const select = document.getElementById(selectorId);
+                if (!select) return;
+
+                select.innerHTML = '<option value="">Todos</option>';
+                paises.forEach(p => {
+                    const option = document.createElement('option');
+                    option.value = p.id;
+                    option.textContent = p.name;
+                    select.appendChild(option);
+                });
+            });
+        } catch (error) {
+            console.error('[PopulatePaises] Error:', error);
+        }
+    },
+
+    async populateAreasByFilters(regionId, paisId, selectorIds) {
+        try {
+            let url = '/api/config/areas/full';
+            const params = [];
+            if (regionId) params.push(`region_id=${regionId}`);
+            if (paisId) params.push(`pais_id=${paisId}`);
+            if (params.length > 0) url += '?' + params.join('&');
+
+            const response = await fetch(url, { credentials: 'include' });
+            const areas = await response.json();
+
+            selectorIds.forEach(selectorId => {
+                const select = document.getElementById(selectorId);
+                if (!select) return;
+
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">Todas</option>';
+                areas.forEach(a => {
+                    const option = document.createElement('option');
+                    option.value = a.id;
+                    option.textContent = a.name;
+                    select.appendChild(option);
+                });
+                if (currentValue && areas.some(a => a.id == currentValue)) {
+                    select.value = currentValue;
+                }
+            });
+        } catch (error) {
+            console.error('[PopulateAreas] Error:', error);
+        }
+    },
+
+    // Dashboard cascade handlers
+    async onDashRegionChange() {
+        const regionId = document.getElementById('dash-region')?.value;
+        await this.populatePaisSelectors(regionId, ['dash-pais']);
+        document.getElementById('dash-pais').value = '';
+        await this.populateAreasByFilters(regionId, '', ['dash-area']);
+    },
+
+    async onDashPaisChange() {
+        const regionId = document.getElementById('dash-region')?.value;
+        const paisId = document.getElementById('dash-pais')?.value;
+        await this.populateAreasByFilters(regionId, paisId, ['dash-area']);
+    },
+
+    // Planning cascade handlers
+    async onPlanRegionChange() {
+        const regionId = document.getElementById('plan-region')?.value;
+        await this.populatePaisSelectors(regionId, ['plan-pais']);
+        document.getElementById('plan-pais').value = '';
+        await this.populateAreasByFilters(regionId, '', ['plan-area']);
+        this.loadPlanning();
+    },
+
+    async onPlanPaisChange() {
+        const regionId = document.getElementById('plan-region')?.value;
+        const paisId = document.getElementById('plan-pais')?.value;
+        await this.populateAreasByFilters(regionId, paisId, ['plan-area']);
+        this.loadPlanning();
+    },
+
+    // Viewer cascade handlers
+    async onViewerRegionChange() {
+        const regionId = document.getElementById('viewer-region')?.value;
+        await this.populatePaisSelectors(regionId, ['viewer-pais']);
+        document.getElementById('viewer-pais').value = '';
+        await this.populateAreasByFilters(regionId, '', ['viewer-area']);
+        this.loadViewer();
+    },
+
+    async onViewerPaisChange() {
+        const regionId = document.getElementById('viewer-region')?.value;
+        const paisId = document.getElementById('viewer-pais')?.value;
+        await this.populateAreasByFilters(regionId, paisId, ['viewer-area']);
+        this.loadViewer();
+    },
+
+    // Areas config cascade handler
+    async onAreasRegionChange() {
+        const regionId = document.getElementById('filter-areas-region')?.value;
+        await this.populatePaisSelectors(regionId, ['filter-areas-pais']);
+        document.getElementById('filter-areas-pais').value = '';
+        this.loadAreas();
+    },
+
+    // Area modal cascade handler (for region/pais selection in add/edit modal)
+    async onAreaModalRegionChange() {
+        const regionId = document.getElementById('area-region')?.value;
+        if (regionId) {
+            await this.populatePaisSelectors(regionId, ['area-pais']);
+        } else {
+            document.getElementById('area-pais').innerHTML = '<option value="">-- Sin país --</option>';
+        }
+    },
+
+    // Cliente modal cascade handler (for region/pais selection in add/edit modal)
+    async onClienteModalRegionChange() {
+        const regionId = document.getElementById('cliente-region')?.value;
+        if (regionId) {
+            await this.populatePaisSelectors(regionId, ['cliente-pais']);
+        } else {
+            document.getElementById('cliente-pais').innerHTML = '<option value="">-- Seleccionar --</option>';
+        }
+    },
+
+    // ============================================
+    // COR Integration Functions
+    // ============================================
+
+    async loadCorConfig() {
+        try {
+            const response = await fetch('/api/cor/config', { credentials: 'include' });
+            if (!response.ok) return;
+
+            const config = await response.json();
+            document.getElementById('cor-sync-auto').checked = config.sync_automatica || false;
+            document.getElementById('cor-sync-intervalo').value = config.intervalo_sync_horas || 24;
+
+            if (config.ultima_sincronizacion) {
+                const date = new Date(config.ultima_sincronizacion);
+                document.getElementById('cor-ultima-sync').textContent = date.toLocaleString('es-ES');
+            }
+        } catch (error) {
+            console.error('[COR Config] Error:', error);
+        }
+    },
+
+    async saveCorConfig() {
+        try {
+            const apiKey = document.getElementById('cor-api-key').value || null;
+            const clientSecret = document.getElementById('cor-client-secret').value || null;
+            const syncAuto = document.getElementById('cor-sync-auto').checked;
+            const intervalo = document.getElementById('cor-sync-intervalo').value;
+
+            const response = await fetch('/api/cor/config', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    api_key: apiKey,
+                    client_secret: clientSecret,
+                    sync_automatica: syncAuto,
+                    intervalo_sync_horas: intervalo
+                })
+            });
+
+            if (response.ok) {
+                showToast('Configuración guardada', 'success');
+                // Clear sensitive fields
+                document.getElementById('cor-api-key').value = '';
+                document.getElementById('cor-client-secret').value = '';
+            } else {
+                showToast('Error al guardar configuración', 'error');
+            }
+        } catch (error) {
+            console.error('[COR Config] Save error:', error);
+            showToast('Error al guardar', 'error');
+        }
+    },
+
+    testCorConnection() {
+        showToast('Esta funcionalidad estará disponible cuando tengas credenciales de API', 'info');
+    },
+
+    syncCorNow() {
+        showToast('Esta funcionalidad estará disponible cuando tengas credenciales de API', 'info');
+    },
+
+    togglePasswordVisibility(inputId) {
+        const input = document.getElementById(inputId);
+        if (input) {
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+    },
+
+    async importCorCsv() {
+        const fileInput = document.getElementById('cor-csv-file');
+        if (!fileInput || !fileInput.files.length) {
+            showToast('Selecciona un archivo CSV', 'warning');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        try {
+            const response = await fetch('/api/cor/importar-horas-csv', {
+                method: 'POST',
+                credentials: 'include',
+                body: formData
+            });
+
+            const result = await response.json();
+            if (response.ok) {
+                showToast(result.message, 'success');
+                fileInput.value = '';
+            } else {
+                showToast(result.error || 'Error al importar', 'error');
+            }
+        } catch (error) {
+            console.error('[COR CSV] Error:', error);
+            showToast('Error al importar CSV', 'error');
+        }
+    },
+
+    // COR Mapeo Functions
+    showCorMapeoTab(tab) {
+        const proyectosDiv = document.getElementById('cor-mapeo-proyectos');
+        const usuariosDiv = document.getElementById('cor-mapeo-usuarios');
+        const btnProyectos = document.getElementById('btn-mapeo-proyectos');
+        const btnUsuarios = document.getElementById('btn-mapeo-usuarios');
+
+        if (tab === 'proyectos') {
+            proyectosDiv.classList.remove('hidden');
+            usuariosDiv.classList.add('hidden');
+            btnProyectos.classList.remove('btn-secondary');
+            btnProyectos.classList.add('btn-primary');
+            btnUsuarios.classList.remove('btn-primary');
+            btnUsuarios.classList.add('btn-secondary');
+            this.loadCorMapeoProyectos();
+        } else {
+            proyectosDiv.classList.add('hidden');
+            usuariosDiv.classList.remove('hidden');
+            btnProyectos.classList.remove('btn-primary');
+            btnProyectos.classList.add('btn-secondary');
+            btnUsuarios.classList.remove('btn-secondary');
+            btnUsuarios.classList.add('btn-primary');
+            this.loadCorMapeoUsuarios();
+        }
+    },
+
+    async loadCorMapeoProyectos() {
+        try {
+            const response = await fetch('/api/cor/mapeo-proyectos', { credentials: 'include' });
+            const mapeos = await response.json();
+
+            const tbody = document.getElementById('table-cor-mapeo-proyectos');
+            if (!tbody) return;
+
+            if (mapeos.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: #999;">
+                    No hay proyectos de COR importados. Sincroniza primero con COR o importa un CSV.
+                </td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = mapeos.map(m => `
+                <tr>
+                    <td>${this.escapeHtml(m.cor_project_name || '-')}</td>
+                    <td>${this.escapeHtml(m.cor_client_name || '-')}</td>
+                    <td>
+                        <select onchange="app.updateCorMapeoProyecto(${m.id}, this.value)" class="form-control" style="width: 200px;">
+                            <option value="">-- Sin vincular --</option>
+                            ${this.state.clientes.map(c => `
+                                <option value="${c.id}" ${m.cliente_id === c.id ? 'selected' : ''}>${this.escapeHtml(c.name)}</option>
+                            `).join('')}
+                        </select>
+                    </td>
+                    <td>${m.vinculacion_automatica ? '<span style="color: #28a745;">Automática</span>' : '<span style="color: #6c757d;">Manual</span>'}</td>
+                    <td style="text-align: right;">
+                        <button class="btn-icon" onclick="app.updateCorMapeoProyecto(${m.id}, null)"><i class="fas fa-unlink"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (error) {
+            console.error('[COR Mapeo Proyectos] Error:', error);
+        }
+    },
+
+    async loadCorMapeoUsuarios() {
+        try {
+            const response = await fetch('/api/cor/mapeo-usuarios', { credentials: 'include' });
+            const mapeos = await response.json();
+
+            const tbody = document.getElementById('table-cor-mapeo-usuarios');
+            if (!tbody) return;
+
+            if (mapeos.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: #999;">
+                    No hay usuarios de COR importados. Sincroniza primero con COR o importa un CSV.
+                </td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = mapeos.map(m => `
+                <tr>
+                    <td>${this.escapeHtml(m.cor_user_name || '-')}</td>
+                    <td>${this.escapeHtml(m.cor_user_email || '-')}</td>
+                    <td>
+                        <select onchange="app.updateCorMapeoUsuario(${m.id}, this.value)" class="form-control" style="width: 200px;">
+                            <option value="">-- Sin vincular --</option>
+                            ${this.state.colaboradores.map(c => `
+                                <option value="${c.id}" ${m.colaborador_id === c.id ? 'selected' : ''}>${this.escapeHtml(c.name)}</option>
+                            `).join('')}
+                        </select>
+                    </td>
+                    <td>${m.vinculacion_automatica ? '<span style="color: #28a745;">Automática</span>' : '<span style="color: #6c757d;">Manual</span>'}</td>
+                    <td style="text-align: right;">
+                        <button class="btn-icon" onclick="app.updateCorMapeoUsuario(${m.id}, null)"><i class="fas fa-unlink"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (error) {
+            console.error('[COR Mapeo Usuarios] Error:', error);
+        }
+    },
+
+    async updateCorMapeoProyecto(id, clienteId) {
+        try {
+            await fetch(`/api/cor/mapeo-proyectos/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ cliente_id: clienteId })
+            });
+            showToast('Mapeo actualizado', 'success');
+        } catch (error) {
+            console.error('[COR Mapeo] Error:', error);
+            showToast('Error al actualizar', 'error');
+        }
+    },
+
+    async updateCorMapeoUsuario(id, colaboradorId) {
+        try {
+            await fetch(`/api/cor/mapeo-usuarios/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ colaborador_id: colaboradorId })
+            });
+            showToast('Mapeo actualizado', 'success');
+        } catch (error) {
+            console.error('[COR Mapeo] Error:', error);
+            showToast('Error al actualizar', 'error');
+        }
+    },
+
+    async autoVincularProyectos() {
+        try {
+            const response = await fetch('/api/cor/auto-vincular-proyectos', {
+                method: 'POST',
+                credentials: 'include'
+            });
+            const result = await response.json();
+            showToast(result.message, 'success');
+            this.loadCorMapeoProyectos();
+        } catch (error) {
+            console.error('[Auto-vincular] Error:', error);
+            showToast('Error al auto-vincular', 'error');
+        }
+    },
+
+    async autoVincularUsuarios() {
+        try {
+            const response = await fetch('/api/cor/auto-vincular-usuarios', {
+                method: 'POST',
+                credentials: 'include'
+            });
+            const result = await response.json();
+            showToast(result.message, 'success');
+            this.loadCorMapeoUsuarios();
+        } catch (error) {
+            console.error('[Auto-vincular] Error:', error);
+            showToast('Error al auto-vincular', 'error');
+        }
+    },
+
+    // ============================================
+    // COMPARATIVO Functions
+    // ============================================
+
+    compCharts: {
+        scatter: null,
+        trend: null,
+        variance: null,
+        colaborador: null
+    },
+
+    // Set default date range (last week)
+    initCompDateRange() {
+        const today = new Date();
+        const lastWeekEnd = new Date(today);
+        lastWeekEnd.setDate(today.getDate() - today.getDay()); // Last Sunday
+        const lastWeekStart = new Date(lastWeekEnd);
+        lastWeekStart.setDate(lastWeekEnd.getDate() - 6); // Monday of last week
+
+        document.getElementById('comp-fecha-desde').value = this.formatDate(lastWeekStart);
+        document.getElementById('comp-fecha-hasta').value = this.formatDate(lastWeekEnd);
+    },
+
+    formatDate(date) {
+        return date.toISOString().split('T')[0];
+    },
+
+    setCompDateRange(range) {
+        const today = new Date();
+        let desde, hasta;
+
+        switch(range) {
+            case 'week':
+                // Last complete week (Monday to Sunday)
+                hasta = new Date(today);
+                hasta.setDate(today.getDate() - today.getDay()); // Last Sunday
+                desde = new Date(hasta);
+                desde.setDate(hasta.getDate() - 6); // Monday of last week
+                break;
+            case 'month':
+                // Last 30 days
+                hasta = new Date(today);
+                desde = new Date(today);
+                desde.setDate(today.getDate() - 30);
+                break;
+            case 'quarter':
+                // Last 90 days
+                hasta = new Date(today);
+                desde = new Date(today);
+                desde.setDate(today.getDate() - 90);
+                break;
+            default:
+                return;
+        }
+
+        document.getElementById('comp-fecha-desde').value = this.formatDate(desde);
+        document.getElementById('comp-fecha-hasta').value = this.formatDate(hasta);
+        this.loadComparativo();
+    },
+
+    async loadComparativo() {
+        const fechaDesde = document.getElementById('comp-fecha-desde')?.value || '';
+        const fechaHasta = document.getElementById('comp-fecha-hasta')?.value || '';
+        const areaId = document.getElementById('comp-area')?.value || '';
+        const regionId = document.getElementById('comp-region')?.value || '';
+        const paisId = document.getElementById('comp-pais')?.value || '';
+
+        try {
+            let url = `/api/cor/comparativo?`;
+            const params = [];
+            if (fechaDesde) params.push(`fecha_desde=${fechaDesde}`);
+            if (fechaHasta) params.push(`fecha_hasta=${fechaHasta}`);
+            if (areaId) params.push(`id_area=${areaId}`);
+            if (regionId) params.push(`region_id=${regionId}`);
+            if (paisId) params.push(`pais_id=${paisId}`);
+            url += params.join('&');
+
+            const response = await fetch(url, { credentials: 'include' });
+            const data = await response.json();
+
+            // Update main KPIs
+            document.getElementById('kpi-planificadas').textContent = data.resumen.planificadas.toFixed(1) + 'h';
+            document.getElementById('kpi-reales').textContent = data.resumen.reales.toFixed(1) + 'h';
+
+            const diferencia = data.resumen.diferencia;
+            const diffEl = document.getElementById('kpi-diferencia');
+            diffEl.textContent = (diferencia >= 0 ? '+' : '') + diferencia.toFixed(1) + 'h';
+            diffEl.style.color = diferencia >= 0 ? '#e74c3c' : '#27ae60';
+
+            const precisionEl = document.getElementById('kpi-precision');
+            precisionEl.textContent = data.kpis.precision.toFixed(1) + '%';
+            precisionEl.style.color = data.kpis.precision >= 90 ? '#27ae60' : data.kpis.precision >= 70 ? '#f39c12' : '#e74c3c';
+
+            // Update status KPIs
+            document.getElementById('kpi-eficientes').textContent = data.kpis.clientesEficientes;
+            document.getElementById('kpi-sobrepasados').textContent = data.kpis.clientesSobrepasados;
+            document.getElementById('kpi-subutilizados').textContent = data.kpis.clientesSubutilizados;
+
+            // Store data for filtering
+            this.currentComparativoData = data;
+            this.selectedClientId = null;
+
+            // Update charts
+            this.updateScatterChart(data.scatterData);
+            this.updateTrendChart(data.porDia);
+            this.updateVarianceChart(data.porCliente);
+            this.updateHeatmap(data.porCliente); // Changed to use porCliente for simpler display
+
+            // Update table (no filter initially)
+            this.updateColaboradorChart(data.detalle);
+
+        } catch (error) {
+            console.error('[Comparativo] Error:', error);
+        }
+    },
+
+    updateScatterChart(scatterData) {
+        const ctx = document.getElementById('chart-scatter');
+        if (!ctx) return;
+
+        if (this.compCharts.scatter) {
+            this.compCharts.scatter.destroy();
+        }
+
+        // Filter to only show clients with data
+        const filteredData = scatterData.filter(d => d.x > 0 || d.y > 0);
+
+        if (filteredData.length === 0) {
+            this.compCharts.scatter = new Chart(ctx, {
+                type: 'scatter',
+                data: { datasets: [] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: { display: true, text: 'Sin datos para mostrar', color: '#999', font: { size: 14 } }
+                    }
+                }
+            });
+            return;
+        }
+
+        // Calculate max value for diagonal line
+        const maxVal = Math.max(
+            ...filteredData.map(d => Math.max(d.x, d.y)),
+            10
+        ) * 1.1;
+
+        this.compCharts.scatter = new Chart(ctx, {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: 'Clientes',
+                    data: filteredData,
+                    backgroundColor: filteredData.map(d => {
+                        if (d.y > d.x * 1.1) return 'rgba(231, 76, 60, 0.7)';  // Sobrepasado
+                        if (d.y < d.x * 0.9) return 'rgba(52, 152, 219, 0.7)'; // Subutilizado
+                        return 'rgba(39, 174, 96, 0.7)'; // Eficiente
+                    }),
+                    borderColor: filteredData.map(d => {
+                        if (d.y > d.x * 1.1) return '#c0392b';
+                        if (d.y < d.x * 0.9) return '#2980b9';
+                        return '#27ae60';
+                    }),
+                    borderWidth: 2,
+                    pointRadius: 8,
+                    pointHoverRadius: 12
+                }, {
+                    label: 'Línea ideal (1:1)',
+                    data: [{ x: 0, y: 0 }, { x: maxVal, y: maxVal }],
+                    type: 'line',
+                    borderColor: 'rgba(0, 0, 0, 0.3)',
+                    borderDash: [5, 5],
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                const d = context.raw;
+                                if (!d.label) return '';
+                                return `${d.label}: Plan ${d.x.toFixed(1)}h, Real ${d.y.toFixed(1)}h`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Horas Planificadas' },
+                        min: 0,
+                        ticks: {
+                            callback: (value) => value.toFixed(1)
+                        }
+                    },
+                    y: {
+                        title: { display: true, text: 'Horas Reales' },
+                        min: 0,
+                        ticks: {
+                            callback: (value) => value.toFixed(1)
+                        }
+                    }
+                }
+            }
+        });
+    },
+
+    updateTrendChart(porDia) {
+        const ctx = document.getElementById('chart-trend');
+        if (!ctx) return;
+
+        if (this.compCharts.trend) {
+            this.compCharts.trend.destroy();
+        }
+
+        if (!porDia || porDia.length === 0) {
+            this.compCharts.trend = new Chart(ctx, {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: { display: true, text: 'Sin datos para mostrar', color: '#999', font: { size: 14 } }
+                    }
+                }
+            });
+            return;
+        }
+
+        // Format date labels (short format)
+        const labels = porDia.map(s => {
+            const d = new Date(s.date + 'T00:00:00');
+            return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+        });
+        const planificadas = porDia.map(s => s.planificadas);
+        const reales = porDia.map(s => s.reales);
+
+        // Check if we have real data
+        const hasRealData = reales.some(r => r > 0);
+
+        const datasets = [{
+            label: 'Planificadas',
+            data: planificadas,
+            borderColor: '#3498db',
+            backgroundColor: 'rgba(52, 152, 219, 0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: labels.length > 14 ? 2 : 4,
+            pointHoverRadius: 6
+        }];
+
+        // Only add reales dataset if there's data or always show it for comparison
+        datasets.push({
+            label: 'Reales' + (hasRealData ? '' : ' (sin datos COR)'),
+            data: reales,
+            borderColor: hasRealData ? '#9b59b6' : 'rgba(155, 89, 182, 0.3)',
+            backgroundColor: 'rgba(155, 89, 182, 0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: hasRealData ? (labels.length > 14 ? 2 : 4) : 1,
+            pointHoverRadius: 6,
+            borderDash: hasRealData ? [] : [5, 5]
+        });
+
+        this.compCharts.trend = new Chart(ctx, {
+            type: 'line',
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { usePointStyle: true }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 0,
+                            autoSkip: true,
+                            maxTicksLimit: 10
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Horas' },
+                        ticks: {
+                            callback: (value) => value.toFixed(1)
+                        }
+                    }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                }
+            }
+        });
+    },
+
+    updateVarianceChart(porCliente) {
+        const ctx = document.getElementById('chart-variance');
+        if (!ctx) return;
+
+        if (this.compCharts.variance) {
+            this.compCharts.variance.destroy();
+        }
+
+        // Check if we have any real data
+        const hasRealData = porCliente.some(c => c.reales > 0);
+
+        // If no real data, show planned hours as bars (all negative = subutilizado style)
+        // Take top 15 clients by planned hours when no real data, or by absolute difference when there's data
+        let topClients;
+        if (hasRealData) {
+            topClients = porCliente.slice(0, 15);
+        } else {
+            // Sort by planned hours descending and take top 15
+            topClients = [...porCliente]
+                .filter(c => c.planificadas > 0)
+                .sort((a, b) => b.planificadas - a.planificadas)
+                .slice(0, 15);
+        }
+
+        if (topClients.length === 0) {
+            this.compCharts.variance = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: [], datasets: [] },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: { display: true, text: 'Sin datos para mostrar', color: '#999', font: { size: 14 } }
+                    }
+                }
+            });
+            return;
+        }
+
+        const labels = topClients.map(c => c.cliente_name.length > 20
+            ? c.cliente_name.substring(0, 20) + '...'
+            : c.cliente_name);
+
+        // When no real data, show planned hours as negative (subutilizado = no se usaron las horas)
+        const diferencias = hasRealData
+            ? topClients.map(c => c.diferencia)
+            : topClients.map(c => -c.planificadas); // Negative because real = 0
+
+        this.compCharts.variance = new Chart(ctx, {
+            type: 'bar',
+            plugins: [ChartDataLabels],
+            data: {
+                labels,
+                datasets: [{
+                    label: hasRealData ? 'Varianza (horas)' : 'Horas planificadas (sin datos COR)',
+                    data: diferencias,
+                    backgroundColor: diferencias.map(d => {
+                        if (!hasRealData) return 'rgba(52, 152, 219, 0.5)'; // All blue when no real data
+                        if (d > 0) return 'rgba(231, 76, 60, 0.7)';
+                        if (d < 0) return 'rgba(52, 152, 219, 0.7)';
+                        return 'rgba(39, 174, 96, 0.7)';
+                    }),
+                    borderColor: diferencias.map(d => {
+                        if (!hasRealData) return '#2980b9';
+                        if (d > 0) return '#c0392b';
+                        if (d < 0) return '#2980b9';
+                        return '#27ae60';
+                    }),
+                    borderWidth: 1,
+                    borderDash: hasRealData ? undefined : [5, 5]
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: !hasRealData },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                const client = topClients[context.dataIndex];
+                                if (!hasRealData) {
+                                    return [
+                                        `Planificadas: ${client.planificadas.toFixed(1)}h`,
+                                        `Reales: 0h (sin datos COR)`,
+                                        `Diferencia: -${client.planificadas.toFixed(1)}h`
+                                    ];
+                                }
+                                return [
+                                    `Diferencia: ${client.diferencia >= 0 ? '+' : ''}${client.diferencia.toFixed(1)}h`,
+                                    `Varianza: ${client.varianza_pct >= 0 ? '+' : ''}${client.varianza_pct.toFixed(1)}%`,
+                                    `Plan: ${client.planificadas.toFixed(1)}h, Real: ${client.reales.toFixed(1)}h`
+                                ];
+                            }
+                        }
+                    },
+                    datalabels: {
+                        anchor: 'center',
+                        align: 'center',
+                        color: '#1a1a2e',
+                        font: { weight: 'bold', size: 11 },
+                        formatter: (value) => value.toFixed(1)
+                    }
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: hasRealData ? 'Diferencia (horas)' : 'Horas (planificadas sin utilizar)' },
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: {
+                            callback: (value) => value.toFixed(1)
+                        }
+                    },
+                    y: {
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    },
+
+    // Store current data for filtering
+    currentComparativoData: null,
+    selectedClientId: null,
+
+    updateHeatmap(porCliente) {
+        const container = document.getElementById('heatmap-container');
+        if (!container) return;
+
+        if (!porCliente || porCliente.length === 0) {
+            container.innerHTML = '<div class="comp-heatmap-empty">No hay datos para mostrar</div>';
+            return;
+        }
+
+        // Check if we have real data
+        const hasRealData = porCliente.some(c => c.reales > 0);
+
+        // Sort by planned hours and take all clients
+        const sortedClients = [...porCliente]
+            .filter(c => c.planificadas > 0 || c.reales > 0)
+            .sort((a, b) => b.planificadas - a.planificadas);
+
+        if (sortedClients.length === 0) {
+            container.innerHTML = '<div class="comp-heatmap-empty">No hay clientes con horas en el período</div>';
+            return;
+        }
+
+        // Find max hours for scaling
+        const maxHours = Math.max(...sortedClients.map(c => Math.max(c.planificadas, c.reales)));
+
+        // Build HTML
+        let html = '';
+
+        if (!hasRealData) {
+            html += `<div class="comp-heatmap-warning">
+                <i class="fas fa-info-circle"></i>
+                Sin datos de COR - Mostrando solo horas planificadas
+            </div>`;
+        }
+
+        html += '<div class="comp-client-bars">';
+
+        sortedClients.forEach(client => {
+            const planWidth = maxHours > 0 ? (client.planificadas / maxHours) * 100 : 0;
+            const realWidth = maxHours > 0 ? (client.reales / maxHours) * 100 : 0;
+            const clientName = client.cliente_name || 'Sin nombre';
+            const displayName = clientName.length > 30 ? clientName.substring(0, 30) + '...' : clientName;
+
+            // Determine status
+            let statusClass = '';
+            let statusIcon = '';
+            if (hasRealData) {
+                if (client.varianza_pct >= -10 && client.varianza_pct <= 10) {
+                    statusClass = 'eficiente';
+                    statusIcon = '<i class="fas fa-check-circle"></i>';
+                } else if (client.varianza_pct > 10) {
+                    statusClass = 'sobrepasado';
+                    statusIcon = '<i class="fas fa-arrow-up"></i>';
+                } else {
+                    statusClass = 'subutilizado';
+                    statusIcon = '<i class="fas fa-arrow-down"></i>';
+                }
+            }
+
+            html += `
+                <div class="comp-client-row ${statusClass}" data-client-id="${client.cliente_id}" onclick="app.filterByClient(${client.cliente_id})" style="cursor: pointer;">
+                    <div class="comp-client-name" title="${this.escapeHtml(clientName)}">
+                        ${this.escapeHtml(displayName)}
+                    </div>
+                    <div class="comp-client-bar-container">
+                        <div class="comp-client-bar plan" style="width: ${planWidth}%;">
+                            <span>${client.planificadas.toFixed(1)}h</span>
+                        </div>
+                        ${hasRealData ? `
+                        <div class="comp-client-bar real" style="width: ${realWidth}%;">
+                            <span>${client.reales.toFixed(1)}h</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                    <div class="comp-client-status">
+                        ${hasRealData ? `${statusIcon} ${client.varianza_pct >= 0 ? '+' : ''}${client.varianza_pct.toFixed(1)}%` : ''}
+                    </div>
+                </div>
+            `;
+        });
+
+        html += '</div>';
+
+        // Add legend
+        html += `
+            <div class="comp-heatmap-legend">
+                <span class="comp-heatmap-legend-item"><span style="background: #3498db;"></span> Planificadas</span>
+                ${hasRealData ? `<span class="comp-heatmap-legend-item"><span style="background: #9b59b6;"></span> Reales</span>` : ''}
+                ${hasRealData ? `
+                <span class="comp-heatmap-legend-item"><span style="background: #27ae60;"></span> Eficiente</span>
+                <span class="comp-heatmap-legend-item"><span style="background: #e74c3c;"></span> Sobrepasado</span>
+                ` : '<span style="color: #666; font-style: italic;">Pendiente datos COR</span>'}
+            </div>
+        `;
+
+        container.innerHTML = html;
+    },
+
+    updateColaboradorChart(detalle) {
+        const ctx = document.getElementById('chart-colaborador');
+        if (!ctx) return;
+
+        if (this.compCharts.colaborador) {
+            this.compCharts.colaborador.destroy();
+        }
+
+        if (!detalle || detalle.length === 0) {
+            this.compCharts.colaborador = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: [], datasets: [] },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: { display: true, text: 'Sin datos para mostrar', color: '#999', font: { size: 14 } }
+                    }
+                }
+            });
+            return;
+        }
+
+        // Aggregate data by collaborator
+        const colaboradorMap = {};
+        detalle.forEach(row => {
+            const colabName = row.colaborador_name || 'Sin asignar';
+            if (!colaboradorMap[colabName]) {
+                colaboradorMap[colabName] = {
+                    planificadas: 0,
+                    reales: 0,
+                    clientes: {}
+                };
+            }
+            colaboradorMap[colabName].planificadas += row.horas_planificadas || 0;
+            colaboradorMap[colabName].reales += row.horas_reales || 0;
+
+            // Track by client for tooltip
+            const clientName = row.cliente_name || 'Sin cliente';
+            if (!colaboradorMap[colabName].clientes[clientName]) {
+                colaboradorMap[colabName].clientes[clientName] = { plan: 0, real: 0 };
+            }
+            colaboradorMap[colabName].clientes[clientName].plan += row.horas_planificadas || 0;
+            colaboradorMap[colabName].clientes[clientName].real += row.horas_reales || 0;
+        });
+
+        // Sort by total planned hours and take top 15
+        const sortedColabs = Object.entries(colaboradorMap)
+            .sort((a, b) => b[1].planificadas - a[1].planificadas)
+            .slice(0, 15);
+
+        const labels = sortedColabs.map(([name]) =>
+            name.length > 25 ? name.substring(0, 25) + '...' : name
+        );
+
+        const hasRealData = sortedColabs.some(([, data]) => data.reales > 0);
+
+        // Prepare datasets
+        const datasets = [
+            {
+                label: 'Planificadas',
+                data: sortedColabs.map(([, data]) => data.planificadas),
+                backgroundColor: 'rgba(52, 152, 219, 0.7)',
+                borderColor: '#2980b9',
+                borderWidth: 1
+            }
+        ];
+
+        if (hasRealData) {
+            datasets.push({
+                label: 'Reales',
+                data: sortedColabs.map(([, data]) => data.reales),
+                backgroundColor: 'rgba(155, 89, 182, 0.7)',
+                borderColor: '#8e44ad',
+                borderWidth: 1
+            });
+        }
+
+        // Adjust chart height based on number of collaborators
+        const container = document.getElementById('chart-colaborador-container');
+        if (container) {
+            const barHeight = 50;
+            const minHeight = 300;
+            const calculatedHeight = Math.max(minHeight, sortedColabs.length * barHeight);
+            container.style.height = calculatedHeight + 'px';
+        }
+
+        this.compCharts.colaborador = new Chart(ctx, {
+            type: 'bar',
+            plugins: [ChartDataLabels],
+            data: { labels, datasets },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            afterBody: (context) => {
+                                const idx = context[0].dataIndex;
+                                const colabData = sortedColabs[idx][1];
+                                const clientList = Object.entries(colabData.clientes)
+                                    .sort((a, b) => b[1].plan - a[1].plan)
+                                    .slice(0, 5)
+                                    .map(([client, hours]) => {
+                                        const clientShort = client.length > 20 ? client.substring(0, 20) + '...' : client;
+                                        return hasRealData
+                                            ? `  ${clientShort}: ${hours.plan.toFixed(1)}h plan / ${hours.real.toFixed(1)}h real`
+                                            : `  ${clientShort}: ${hours.plan.toFixed(1)}h`;
+                                    });
+                                return ['', 'Clientes:', ...clientList];
+                            }
+                        }
+                    },
+                    datalabels: {
+                        anchor: 'center',
+                        align: 'center',
+                        color: '#1a1a2e',
+                        font: { weight: 'bold', size: 10 },
+                        formatter: (value) => value.toFixed(1) + 'h'
+                    }
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Horas' },
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: {
+                            callback: (value) => value.toFixed(0) + 'h'
+                        },
+                        beginAtZero: true
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: {
+                            font: { size: 11 }
+                        }
+                    }
+                }
+            }
+        });
+    },
+
+    filterByClient(clientId) {
+        // If clicking the same client, deselect (show all)
+        if (this.selectedClientId === clientId) {
+            this.selectedClientId = null;
+        } else {
+            this.selectedClientId = clientId;
+        }
+
+        // Update visual selection on client rows
+        let selectedClientName = '';
+        document.querySelectorAll('.comp-client-row').forEach(row => {
+            const rowClientId = parseInt(row.dataset.clientId);
+            if (this.selectedClientId === null) {
+                row.classList.remove('selected');
+            } else if (rowClientId === this.selectedClientId) {
+                row.classList.add('selected');
+                selectedClientName = row.querySelector('.comp-client-name')?.textContent?.trim() || '';
+            } else {
+                row.classList.remove('selected');
+            }
+        });
+
+        // Update filter badge and clear button
+        const badge = document.getElementById('comp-table-filter-badge');
+        const clearBtn = document.getElementById('comp-clear-filter');
+        if (badge && clearBtn) {
+            if (this.selectedClientId !== null) {
+                badge.textContent = `Filtrado: ${selectedClientName}`;
+                badge.classList.remove('hidden');
+                clearBtn.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+                clearBtn.classList.add('hidden');
+            }
+        }
+
+        // Filter and update the collaborator chart
+        if (this.currentComparativoData) {
+            let filteredData = this.currentComparativoData.detalle;
+            if (this.selectedClientId !== null) {
+                filteredData = filteredData.filter(row => row.cliente_id === this.selectedClientId);
+            }
+            this.updateColaboradorChart(filteredData);
+
+            // Scroll to chart
+            const chartSection = document.getElementById('chart-colaborador-container');
+            if (chartSection) {
+                chartSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+    },
+
+    initComparativo() {
+        // Initialize date range to last week
+        this.initCompDateRange();
+
+        this.loadComparativo();
+    },
+
+    async onCompRegionChange() {
+        const regionId = document.getElementById('comp-region')?.value;
+        await this.populatePaisSelectors(regionId, ['comp-pais']);
+        document.getElementById('comp-pais').value = '';
+        await this.populateAreasByFilters(regionId, '', ['comp-area']);
+        this.loadComparativo();
+    },
+
+    async onCompPaisChange() {
+        const regionId = document.getElementById('comp-region')?.value;
+        const paisId = document.getElementById('comp-pais')?.value;
+        await this.populateAreasByFilters(regionId, paisId, ['comp-area']);
+        this.loadComparativo();
     }
 };
 

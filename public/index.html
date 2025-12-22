@@ -11,7 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=45">
+    <link rel="stylesheet" href="style.css?v=61">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 </head>
@@ -50,6 +50,8 @@
                     id="nav-viewer"><i class="fas fa-eye"></i> Visor</button>
                 <button class="nav-menu-item" onclick="app.navigateTo('planning')"
                     id="nav-planning"><i class="fas fa-calendar-alt"></i> Planificación</button>
+                <button class="nav-menu-item" onclick="app.navigateTo('comparativo')"
+                    id="nav-comparativo"><i class="fas fa-balance-scale"></i> Real vs Plan</button>
                 <button class="nav-menu-item" onclick="app.navigateTo('config')" id="nav-config"><i class="fas fa-cog"></i> Configuración</button>
             </div>
             <div class="navbar-user">
@@ -70,18 +72,30 @@
 
                 <!-- Date Range Selector -->
                 <div class="section-card">
-                    <div class="date-range-selector" style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0; white-space: nowrap;">Área</label>
-                            <select id="dash-area" class="form-control" style="width: 160px;" onchange="app.updateDashboard()"></select>
+                    <div class="filter-row">
+                        <div class="filter-group">
+                            <label>Región</label>
+                            <select id="dash-region" class="form-control" onchange="app.onDashRegionChange()">
+                                <option value="">Todas</option>
+                            </select>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0; white-space: nowrap;">Fecha Inicio</label>
-                            <input type="date" id="dash-start-date" class="form-control" style="width: 150px;">
+                        <div class="filter-group">
+                            <label>País</label>
+                            <select id="dash-pais" class="form-control" onchange="app.onDashPaisChange()">
+                                <option value="">Todos</option>
+                            </select>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0; white-space: nowrap;">Fecha Fin</label>
-                            <input type="date" id="dash-end-date" class="form-control" style="width: 150px;">
+                        <div class="filter-group">
+                            <label>Área</label>
+                            <select id="dash-area" class="form-control" onchange="app.updateDashboard()"></select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Inicio</label>
+                            <input type="date" id="dash-start-date" class="form-control">
+                        </div>
+                        <div class="filter-group">
+                            <label>Fin</label>
+                            <input type="date" id="dash-end-date" class="form-control">
                         </div>
                         <button onclick="app.updateDashboard()" class="btn btn-primary">Actualizar</button>
                     </div>
@@ -143,21 +157,30 @@
                     <p class="section-subtitle">Consulta de asignaciones por semana (solo lectura)</p>
                 </div>
                 <div class="section-card" style="margin-bottom: 24px;">
-                    <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0; white-space: nowrap;">Área</label>
-                            <select id="viewer-area" class="form-control" style="width: 160px;"
-                                onchange="app.loadViewer()"></select>
+                    <div class="filter-row">
+                        <div class="filter-group">
+                            <label>Región</label>
+                            <select id="viewer-region" class="form-control" onchange="app.onViewerRegionChange()">
+                                <option value="">Todas</option>
+                            </select>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0; white-space: nowrap;">Año</label>
-                            <select id="viewer-year" class="form-control" style="width: 100px;"
-                                onchange="app.loadViewer()"></select>
+                        <div class="filter-group">
+                            <label>País</label>
+                            <select id="viewer-pais" class="form-control" onchange="app.onViewerPaisChange()">
+                                <option value="">Todos</option>
+                            </select>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0; white-space: nowrap;">Semana</label>
-                            <select id="viewer-week" class="form-control" style="width: 140px;"
-                                onchange="app.loadViewer()"></select>
+                        <div class="filter-group">
+                            <label>Área</label>
+                            <select id="viewer-area" class="form-control" onchange="app.loadViewer()"></select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Año</label>
+                            <select id="viewer-year" class="form-control" onchange="app.loadViewer()"></select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Semana</label>
+                            <select id="viewer-week" class="form-control" onchange="app.loadViewer()"></select>
                         </div>
                     </div>
                 </div>
@@ -182,29 +205,35 @@
                     <p class="section-subtitle">Consulta y gestiona asignaciones por semana</p>
                 </div>
                 <div class="section-card" style="margin-bottom: 24px;">
-                    <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0; white-space: nowrap;">Área</label>
-                            <select id="plan-area" class="form-control" style="width: 150px;"
-                                onchange="app.loadPlanning()"></select>
+                    <div class="filter-row">
+                        <div class="filter-group">
+                            <label>Región</label>
+                            <select id="plan-region" class="form-control" onchange="app.onPlanRegionChange()">
+                                <option value="">Todas</option>
+                            </select>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0; white-space: nowrap;">Año</label>
-                            <select id="plan-year" class="form-control" style="width: 100px;"
-                                onchange="app.loadPlanning()"></select>
+                        <div class="filter-group">
+                            <label>País</label>
+                            <select id="plan-pais" class="form-control" onchange="app.onPlanPaisChange()">
+                                <option value="">Todos</option>
+                            </select>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0; white-space: nowrap;">Semana</label>
-                            <select id="plan-week" class="form-control" style="width: 130px;"
-                                onchange="app.loadPlanning()"></select>
+                        <div class="filter-group">
+                            <label>Área</label>
+                            <select id="plan-area" class="form-control" onchange="app.loadPlanning()"></select>
                         </div>
-                        <div style="display: flex; gap: 10px; margin-left: auto;">
-                            <button onclick="app.copyPreviousWeek()" class="btn btn-secondary"><i
-                                    class="fas fa-copy"></i> Copiar Semana</button>
-                            <button onclick="app.deleteWeekPlanning()" class="btn btn-danger"
-                                style="background-color: #dc3545; color: white;"><i class="fas fa-trash"></i> Eliminar Semana</button>
-                            <button onclick="app.createNewPlanning()" class="btn btn-primary"><i
-                                    class="fas fa-plus"></i> Nueva Planificación</button>
+                        <div class="filter-group">
+                            <label>Año</label>
+                            <select id="plan-year" class="form-control" onchange="app.loadPlanning()"></select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Semana</label>
+                            <select id="plan-week" class="form-control" onchange="app.loadPlanning()"></select>
+                        </div>
+                        <div class="filter-actions">
+                            <button onclick="app.copyPreviousWeek()" class="btn btn-secondary"><i class="fas fa-copy"></i> Copiar</button>
+                            <button onclick="app.deleteWeekPlanning()" class="btn btn-danger"><i class="fas fa-trash"></i> Eliminar</button>
+                            <button onclick="app.createNewPlanning()" class="btn btn-primary"><i class="fas fa-plus"></i> Nueva</button>
                         </div>
                     </div>
                 </div>
@@ -236,8 +265,12 @@
                     <button class="view-tab" onclick="app.switchConfigTab('proyectos')"
                         id="tab-proyectos">Proyectos</button>
                     <button class="view-tab" onclick="app.switchConfigTab('tipos')" id="tab-tipos">Tipo de Proyecto</button>
+                    <button class="view-tab" onclick="app.switchConfigTab('regiones')" id="tab-regiones">Regiones</button>
+                    <button class="view-tab" onclick="app.switchConfigTab('paises')" id="tab-paises">Países</button>
                     <button class="view-tab" onclick="app.switchConfigTab('areas')" id="tab-areas">Áreas</button>
                     <button class="view-tab" onclick="app.switchConfigTab('usuarios')" id="tab-usuarios">Usuarios</button>
+                    <button class="view-tab" onclick="app.switchConfigTab('cor-config')" id="tab-cor-config">Conexión COR</button>
+                    <button class="view-tab" onclick="app.switchConfigTab('cor-mapeo')" id="tab-cor-mapeo">Mapeo COR</button>
                 </div>
 
                 <!-- Config: Colaboradores -->
@@ -287,6 +320,8 @@
                                         onchange="app.toggleSelectAll('clientes', this.checked)"></th>
                                 <th style="width: 80px;">ID</th>
                                 <th>Cliente</th>
+                                <th>Región</th>
+                                <th>País</th>
                                 <th>Proyecto</th>
                                 <th>Tipo</th>
                                 <th>Área</th>
@@ -349,14 +384,83 @@
                         <tbody id="table-tipos"></tbody>
                     </table>
                 </div>
-                <!-- Config: Áreas -->
-                <div id="config-areas" class="config-tab-content section-card hidden">
+                <!-- Config: Regiones -->
+                <div id="config-regiones" class="config-tab-content section-card hidden">
                     <div class="config-actions">
-                        <button class="btn btn-primary" onclick="app.openAddModal('areas')"><i class="fas fa-plus"></i>
+                        <button class="btn btn-primary" onclick="app.openAddModal('regiones')"><i class="fas fa-plus"></i>
                             Añadir</button>
-                        <button class="btn btn-secondary" onclick="app.deleteSelected('areas')"><i
+                        <button class="btn btn-secondary" onclick="app.deleteSelected('regiones')"><i
                                 class="fas fa-trash"></i>
                             Eliminar Seleccionados</button>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;"><input type="checkbox" class="select-all"
+                                        onchange="app.toggleSelectAll('regiones', this.checked)"></th>
+                                <th style="width: 80px;">ID</th>
+                                <th>Nombre</th>
+                                <th style="width: 100px;">Global</th>
+                                <th style="width: 150px; text-align: right;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-regiones"></tbody>
+                    </table>
+                </div>
+
+                <!-- Config: Países -->
+                <div id="config-paises" class="config-tab-content section-card hidden">
+                    <div class="config-actions">
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <label>Filtrar por Región:</label>
+                            <select id="filter-paises-region" onchange="app.loadPaises()" style="padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
+                                <option value="">Todas</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-left: auto;">
+                            <button class="btn btn-primary" onclick="app.openAddModal('paises')"><i class="fas fa-plus"></i>
+                                Añadir</button>
+                            <button class="btn btn-secondary" onclick="app.deleteSelected('paises')"><i
+                                    class="fas fa-trash"></i>
+                                Eliminar Seleccionados</button>
+                        </div>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;"><input type="checkbox" class="select-all"
+                                        onchange="app.toggleSelectAll('paises', this.checked)"></th>
+                                <th style="width: 80px;">ID</th>
+                                <th>Nombre</th>
+                                <th>Región</th>
+                                <th style="width: 100px;">Global</th>
+                                <th style="width: 150px; text-align: right;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-paises"></tbody>
+                    </table>
+                </div>
+
+                <!-- Config: Áreas (updated with region/country) -->
+                <div id="config-areas" class="config-tab-content section-card hidden">
+                    <div class="config-actions">
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <label>Región:</label>
+                            <select id="filter-areas-region" onchange="app.onAreasRegionChange()" style="padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
+                                <option value="">Todas</option>
+                            </select>
+                            <label>País:</label>
+                            <select id="filter-areas-pais" onchange="app.loadAreas()" style="padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-left: auto;">
+                            <button class="btn btn-primary" onclick="app.openAddModal('areas')"><i class="fas fa-plus"></i>
+                                Añadir</button>
+                            <button class="btn btn-secondary" onclick="app.deleteSelected('areas')"><i
+                                    class="fas fa-trash"></i>
+                                Eliminar Seleccionados</button>
+                        </div>
                     </div>
                     <table class="data-table">
                         <thead>
@@ -365,6 +469,8 @@
                                         onchange="app.toggleSelectAll('areas', this.checked)"></th>
                                 <th style="width: 80px;">ID</th>
                                 <th>Nombre</th>
+                                <th>Región</th>
+                                <th>País</th>
                                 <th style="width: 150px; text-align: right;">Acciones</th>
                             </tr>
                         </thead>
@@ -392,6 +498,291 @@
                         <tbody id="table-usuarios"></tbody>
                     </table>
                 </div>
+
+                <!-- Config: Conexión COR -->
+                <div id="config-cor-config" class="config-tab-content section-card hidden">
+                    <div class="cor-config-container">
+                        <h3 class="cor-section-title">Configuración de API de COR</h3>
+                        <div class="form-group">
+                            <label>API Key</label>
+                            <div class="cor-input-group">
+                                <input type="password" id="cor-api-key" class="form-control" placeholder="Ingrese API Key">
+                                <button type="button" class="btn btn-secondary" onclick="app.togglePasswordVisibility('cor-api-key')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Client Secret</label>
+                            <div class="cor-input-group">
+                                <input type="password" id="cor-client-secret" class="form-control" placeholder="Ingrese Client Secret">
+                                <button type="button" class="btn btn-secondary" onclick="app.togglePasswordVisibility('cor-client-secret')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Sincronización Automática</label>
+                            <div class="cor-sync-options">
+                                <label class="cor-checkbox-label">
+                                    <input type="checkbox" id="cor-sync-auto">
+                                    <span>Activar sincronización automática</span>
+                                </label>
+                                <select id="cor-sync-intervalo" class="form-control cor-select-auto">
+                                    <option value="1">Cada 1 hora</option>
+                                    <option value="6">Cada 6 horas</option>
+                                    <option value="12">Cada 12 horas</option>
+                                    <option value="24" selected>Cada 24 horas</option>
+                                    <option value="48">Cada 48 horas</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Última Sincronización</label>
+                            <p id="cor-ultima-sync" style="color: #666;">Nunca</p>
+                        </div>
+                        <div class="cor-actions">
+                            <button class="btn btn-primary" onclick="app.saveCorConfig()">
+                                <i class="fas fa-save"></i> Guardar Configuración
+                            </button>
+                            <button class="btn btn-secondary" onclick="app.testCorConnection()">
+                                <i class="fas fa-plug"></i> Probar Conexión
+                            </button>
+                            <button class="btn btn-secondary" onclick="app.syncCorNow()">
+                                <i class="fas fa-sync"></i> Sincronizar Ahora
+                            </button>
+                        </div>
+                        <hr class="cor-divider">
+                        <h3 class="cor-section-title">Importar Horas desde CSV (temporal)</h3>
+                        <p class="cor-description">
+                            Mientras no tengas credenciales de API, puedes importar horas desde un archivo CSV exportado de COR.
+                        </p>
+                        <div class="form-group">
+                            <label>Archivo CSV (columnas: fecha, colaborador/usuario, cliente/proyecto, horas)</label>
+                            <input type="file" id="cor-csv-file" accept=".csv" class="form-control">
+                        </div>
+                        <button class="btn btn-secondary" onclick="app.importCorCsv()">
+                            <i class="fas fa-upload"></i> Importar CSV
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Config: Mapeo COR -->
+                <div id="config-cor-mapeo" class="config-tab-content section-card hidden">
+                    <div class="cor-mapeo-tabs">
+                        <button class="btn btn-primary" id="btn-mapeo-proyectos" onclick="app.showCorMapeoTab('proyectos')">
+                            Mapeo de Proyectos
+                        </button>
+                        <button class="btn btn-secondary" id="btn-mapeo-usuarios" onclick="app.showCorMapeoTab('usuarios')">
+                            Mapeo de Usuarios
+                        </button>
+                        <div class="cor-mapeo-auto-btns">
+                            <button class="btn btn-secondary" onclick="app.autoVincularProyectos()">
+                                <i class="fas fa-magic"></i> Auto-vincular Proyectos
+                            </button>
+                            <button class="btn btn-secondary" onclick="app.autoVincularUsuarios()">
+                                <i class="fas fa-magic"></i> Auto-vincular Usuarios
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Mapeo Proyectos -->
+                    <div id="cor-mapeo-proyectos">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Proyecto COR</th>
+                                    <th>Cliente COR</th>
+                                    <th>Cliente Local</th>
+                                    <th>Vinculación</th>
+                                    <th style="width: 150px; text-align: right;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-cor-mapeo-proyectos"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- Mapeo Usuarios -->
+                    <div id="cor-mapeo-usuarios" class="hidden">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Usuario COR</th>
+                                    <th>Email COR</th>
+                                    <th>Colaborador Local</th>
+                                    <th>Vinculación</th>
+                                    <th style="width: 150px; text-align: right;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-cor-mapeo-usuarios"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COMPARATIVO VIEW -->
+            <div id="view-comparativo" class="view-section hidden">
+                <div class="section-header">
+                    <h2 class="section-title">Real vs Planificado</h2>
+                    <p class="section-subtitle">Análisis de eficiencia: comparación entre horas reales y planificadas</p>
+                </div>
+
+                <!-- Filtros -->
+                <div class="section-card">
+                    <div class="filter-row">
+                        <div class="filter-group">
+                            <label>Región</label>
+                            <select id="comp-region" class="form-control" onchange="app.onCompRegionChange()">
+                                <option value="">Todas</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>País</label>
+                            <select id="comp-pais" class="form-control" onchange="app.onCompPaisChange()">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Área</label>
+                            <select id="comp-area" class="form-control" onchange="app.loadComparativo()">
+                                <option value="">Todas</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Desde</label>
+                            <input type="date" id="comp-fecha-desde" class="form-control" onchange="app.loadComparativo()">
+                        </div>
+                        <div class="filter-group">
+                            <label>Hasta</label>
+                            <input type="date" id="comp-fecha-hasta" class="form-control" onchange="app.loadComparativo()">
+                        </div>
+                        <div class="filter-actions">
+                            <button class="btn btn-secondary btn-sm" onclick="app.setCompDateRange('week')">Semana ant.</button>
+                            <button class="btn btn-secondary btn-sm" onclick="app.setCompDateRange('month')">Mes</button>
+                            <button class="btn btn-secondary btn-sm" onclick="app.setCompDateRange('quarter')">Trimestre</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KPIs Principales -->
+                <div class="comp-kpi-grid">
+                    <div class="comp-kpi-card">
+                        <div class="comp-kpi-icon" style="background: #3498db;">
+                            <i class="fas fa-clipboard-list"></i>
+                        </div>
+                        <div class="comp-kpi-content">
+                            <div class="comp-kpi-label">Horas Planificadas</div>
+                            <div class="comp-kpi-value" id="kpi-planificadas">0h</div>
+                        </div>
+                    </div>
+                    <div class="comp-kpi-card">
+                        <div class="comp-kpi-icon" style="background: #9b59b6;">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="comp-kpi-content">
+                            <div class="comp-kpi-label">Horas Reales</div>
+                            <div class="comp-kpi-value" id="kpi-reales">0h</div>
+                        </div>
+                    </div>
+                    <div class="comp-kpi-card">
+                        <div class="comp-kpi-icon" style="background: #e74c3c;">
+                            <i class="fas fa-balance-scale"></i>
+                        </div>
+                        <div class="comp-kpi-content">
+                            <div class="comp-kpi-label">Diferencia</div>
+                            <div class="comp-kpi-value" id="kpi-diferencia">0h</div>
+                        </div>
+                    </div>
+                    <div class="comp-kpi-card">
+                        <div class="comp-kpi-icon" style="background: #27ae60;">
+                            <i class="fas fa-bullseye"></i>
+                        </div>
+                        <div class="comp-kpi-content">
+                            <div class="comp-kpi-label">Precisión</div>
+                            <div class="comp-kpi-value" id="kpi-precision">0%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KPIs Secundarios - Estado de Clientes -->
+                <div class="comp-status-grid">
+                    <div class="comp-status-card eficiente">
+                        <div class="comp-status-value" id="kpi-eficientes">0</div>
+                        <div class="comp-status-label">Clientes Eficientes</div>
+                        <div class="comp-status-desc">Varianza ±10%</div>
+                    </div>
+                    <div class="comp-status-card sobrepasado">
+                        <div class="comp-status-value" id="kpi-sobrepasados">0</div>
+                        <div class="comp-status-label">Sobrepasados</div>
+                        <div class="comp-status-desc">Real > Plan (+10%)</div>
+                    </div>
+                    <div class="comp-status-card subutilizado">
+                        <div class="comp-status-value" id="kpi-subutilizados">0</div>
+                        <div class="comp-status-label">Subutilizados</div>
+                        <div class="comp-status-desc">Real < Plan (-10%)</div>
+                    </div>
+                </div>
+
+                <!-- Gráficos Row 1: Scatter + Tendencia -->
+                <div class="comp-charts-row">
+                    <div class="section-card comp-chart-card">
+                        <h3 class="comp-chart-title">
+                            <i class="fas fa-crosshairs"></i> Mapa de Eficiencia por Cliente
+                        </h3>
+                        <p class="comp-chart-desc">Puntos sobre la diagonal = sobrepasaron lo planificado</p>
+                        <div class="comp-chart-container">
+                            <canvas id="chart-scatter"></canvas>
+                        </div>
+                    </div>
+                    <div class="section-card comp-chart-card">
+                        <h3 class="comp-chart-title">
+                            <i class="fas fa-chart-line"></i> Tendencia Semanal
+                        </h3>
+                        <p class="comp-chart-desc">Evolución de horas planificadas vs reales por semana</p>
+                        <div class="comp-chart-container">
+                            <canvas id="chart-trend"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gráficos Row 2: Barras horizontales con scroll -->
+                <div class="comp-charts-row">
+                    <div class="section-card comp-chart-card comp-chart-full">
+                        <h3 class="comp-chart-title">
+                            <i class="fas fa-chart-bar"></i> Top 10 - Varianza por Cliente
+                        </h3>
+                        <p class="comp-chart-desc">Desviación entre horas reales y planificadas (ordenado por mayor diferencia absoluta)</p>
+                        <div class="comp-chart-container comp-chart-scroll" id="variance-container">
+                            <canvas id="chart-variance"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gráfico Row 3: Heatmap con scroll -->
+                <div class="section-card">
+                    <h3 class="comp-chart-title">
+                        <i class="fas fa-th"></i> Distribución de Horas por Cliente
+                    </h3>
+                    <p class="comp-chart-desc">Horas totales por cliente en el período seleccionado</p>
+                    <div class="comp-heatmap-container comp-scroll-container" id="heatmap-container">
+                        <div class="comp-heatmap-empty">Seleccione filtros para ver los datos</div>
+                    </div>
+                </div>
+
+                <!-- Gráfico Detalle por Colaborador -->
+                <div class="section-card comp-chart-card comp-chart-full">
+                    <h3 class="comp-chart-title">
+                        <i class="fas fa-users"></i> Horas por Colaborador
+                        <span id="comp-table-filter-badge" class="comp-filter-badge hidden"></span>
+                        <button id="comp-clear-filter" class="btn btn-sm btn-outline hidden" onclick="app.filterByClient(app.selectedClientId)" style="margin-left: auto; font-size: 11px;">
+                            <i class="fas fa-times"></i> Quitar filtro
+                        </button>
+                    </h3>
+                    <p class="comp-chart-desc">Comparativa de horas planificadas vs reales por colaborador (agrupado por cliente)</p>
+                    <div class="comp-chart-container comp-chart-tall" id="chart-colaborador-container">
+                        <canvas id="chart-colaborador"></canvas>
+                    </div>
+                </div>
             </div>
         </main>
 
@@ -409,6 +800,45 @@
                             <label id="name-label">Nombre</label>
                             <input type="text" id="record-name" class="form-control" required>
                         </div>
+                        <!-- Campo para Regiones: es_global -->
+                        <div id="region-fields" class="hidden">
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="checkbox" id="region-es-global">
+                                    <span>Es Global (para áreas transversales)</span>
+                                </label>
+                            </div>
+                        </div>
+                        <!-- Campos para Países: region, es_global -->
+                        <div id="pais-fields" class="hidden">
+                            <div class="form-group">
+                                <label>Región</label>
+                                <select id="pais-region" class="form-control" required>
+                                    <option value="">-- Seleccionar --</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="checkbox" id="pais-es-global">
+                                    <span>Es Global (para país transversal)</span>
+                                </label>
+                            </div>
+                        </div>
+                        <!-- Campos para Áreas: region, país -->
+                        <div id="area-fields" class="hidden">
+                            <div class="form-group">
+                                <label>Región</label>
+                                <select id="area-region" class="form-control" onchange="app.onAreaModalRegionChange()">
+                                    <option value="">-- Sin región --</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>País</label>
+                                <select id="area-pais" class="form-control">
+                                    <option value="">-- Sin país --</option>
+                                </select>
+                            </div>
+                        </div>
                         <div id="colaborador-area-field" class="hidden">
                             <div class="form-group">
                                 <label>Área</label>
@@ -418,6 +848,18 @@
                             </div>
                         </div>
                         <div id="cliente-fields" class="hidden">
+                            <div class="form-group">
+                                <label>Región</label>
+                                <select id="cliente-region" class="form-control" onchange="app.onClienteModalRegionChange()">
+                                    <option value="">-- Seleccionar --</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>País</label>
+                                <select id="cliente-pais" class="form-control">
+                                    <option value="">-- Seleccionar --</option>
+                                </select>
+                            </div>
                             <div class="form-group">
                                 <label>Proyecto</label>
                                 <select id="record-proyecto" class="form-control">

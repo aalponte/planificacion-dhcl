@@ -37,7 +37,6 @@ function runMigrations() {
         } else if (!err) {
             console.log('Migration: Added id_area to usuarios');
         }
-        // Create index after column exists
         db.run('CREATE INDEX IF NOT EXISTS idx_usuarios_area ON usuarios(id_area)', () => {});
     });
 
@@ -48,7 +47,6 @@ function runMigrations() {
         } else if (!err) {
             console.log('Migration: Added id_area to clientes');
         }
-        // Create index after column exists
         db.run('CREATE INDEX IF NOT EXISTS idx_clientes_area ON clientes(id_area)', () => {});
     });
 
@@ -59,7 +57,6 @@ function runMigrations() {
         } else if (!err) {
             console.log('Migration: Added id_area to allocations');
         }
-        // Create index after column exists
         db.run('CREATE INDEX IF NOT EXISTS idx_allocations_area ON allocations(id_area)', () => {});
     });
 
@@ -70,8 +67,69 @@ function runMigrations() {
         } else if (!err) {
             console.log('Migration: Added id_area to colaboradores');
         }
-        // Create index after column exists
         db.run('CREATE INDEX IF NOT EXISTS idx_colaboradores_area ON colaboradores(id_area)', () => {});
+    });
+
+    // Add region_id column to areas if not exists
+    db.run('ALTER TABLE areas ADD COLUMN region_id INTEGER REFERENCES regiones(id)', (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+            // Column already exists, ignore
+        } else if (!err) {
+            console.log('Migration: Added region_id to areas');
+        }
+        // Create index after ensuring column exists
+        db.run('CREATE INDEX IF NOT EXISTS idx_areas_region ON areas(region_id)', () => {});
+    });
+
+    // Add pais_id column to areas if not exists
+    db.run('ALTER TABLE areas ADD COLUMN pais_id INTEGER REFERENCES paises(id)', (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+            // Column already exists, ignore
+        } else if (!err) {
+            console.log('Migration: Added pais_id to areas');
+        }
+        // Create index after ensuring column exists
+        db.run('CREATE INDEX IF NOT EXISTS idx_areas_pais ON areas(pais_id)', () => {});
+    });
+
+    // Add region_id column to clientes if not exists
+    db.run('ALTER TABLE clientes ADD COLUMN region_id INTEGER REFERENCES regiones(id)', (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+            // Column already exists, ignore
+        } else if (!err) {
+            console.log('Migration: Added region_id to clientes');
+        }
+        db.run('CREATE INDEX IF NOT EXISTS idx_clientes_region ON clientes(region_id)', () => {});
+    });
+
+    // Add pais_id column to clientes if not exists
+    db.run('ALTER TABLE clientes ADD COLUMN pais_id INTEGER REFERENCES paises(id)', (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+            // Column already exists, ignore
+        } else if (!err) {
+            console.log('Migration: Added pais_id to clientes');
+        }
+        db.run('CREATE INDEX IF NOT EXISTS idx_clientes_pais ON clientes(pais_id)', () => {});
+    });
+
+    // Add region_id column to allocations if not exists
+    db.run('ALTER TABLE allocations ADD COLUMN region_id INTEGER REFERENCES regiones(id)', (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+            // Column already exists, ignore
+        } else if (!err) {
+            console.log('Migration: Added region_id to allocations');
+        }
+        db.run('CREATE INDEX IF NOT EXISTS idx_allocations_region ON allocations(region_id)', () => {});
+    });
+
+    // Add pais_id column to allocations if not exists
+    db.run('ALTER TABLE allocations ADD COLUMN pais_id INTEGER REFERENCES paises(id)', (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+            // Column already exists, ignore
+        } else if (!err) {
+            console.log('Migration: Added pais_id to allocations');
+        }
+        db.run('CREATE INDEX IF NOT EXISTS idx_allocations_pais ON allocations(pais_id)', () => {});
     });
 
     // Update existing clientes records with default area (lowest ID) if id_area is NULL
@@ -101,7 +159,45 @@ function runMigrations() {
                 }
             });
         });
-    }, 500); // Wait 500ms to ensure columns are created first
+
+        // Link Data Hub and Channel Lab areas to Global region/country
+        db.get('SELECT id FROM regiones WHERE es_global = 1 LIMIT 1', (err, region) => {
+            if (err || !region) return;
+            db.get('SELECT id FROM paises WHERE es_global = 1 LIMIT 1', (err, pais) => {
+                if (err || !pais) return;
+                db.run(`UPDATE areas SET region_id = ?, pais_id = ? WHERE (name = 'Data Hub' OR name = 'Channel Lab') AND region_id IS NULL`,
+                    [region.id, pais.id], function(err) {
+                        if (!err && this.changes > 0) {
+                            console.log(`Migration: Linked ${this.changes} areas to Global region/country`);
+                        }
+                    });
+
+                // Update clientes with NULL region_id or pais_id to Global
+                db.run('UPDATE clientes SET region_id = ? WHERE region_id IS NULL', [region.id], function(err) {
+                    if (!err && this.changes > 0) {
+                        console.log(`Migration: Updated ${this.changes} clientes with Global region`);
+                    }
+                });
+                db.run('UPDATE clientes SET pais_id = ? WHERE pais_id IS NULL', [pais.id], function(err) {
+                    if (!err && this.changes > 0) {
+                        console.log(`Migration: Updated ${this.changes} clientes with Global pais`);
+                    }
+                });
+
+                // Update allocations with NULL region_id or pais_id to Global
+                db.run('UPDATE allocations SET region_id = ? WHERE region_id IS NULL', [region.id], function(err) {
+                    if (!err && this.changes > 0) {
+                        console.log(`Migration: Updated ${this.changes} allocations with Global region`);
+                    }
+                });
+                db.run('UPDATE allocations SET pais_id = ? WHERE pais_id IS NULL', [pais.id], function(err) {
+                    if (!err && this.changes > 0) {
+                        console.log(`Migration: Updated ${this.changes} allocations with Global pais`);
+                    }
+                });
+            });
+        });
+    }, 500);
 }
 
 // Export configured database

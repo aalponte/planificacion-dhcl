@@ -43,7 +43,11 @@ async function updateDashboard() {
     const startDate = document.getElementById('dash-start-date').value;
     const endDate = document.getElementById('dash-end-date').value;
     const areaSelect = document.getElementById('dash-area');
+    const regionSelect = document.getElementById('dash-region');
+    const paisSelect = document.getElementById('dash-pais');
     const id_area = areaSelect && areaSelect.value ? areaSelect.value : (app?.state?.selectedAreaId || null);
+    const region_id = regionSelect && regionSelect.value ? regionSelect.value : null;
+    const pais_id = paisSelect && paisSelect.value ? paisSelect.value : null;
 
     if (!startDate || !endDate) {
         alert('Por favor selecciona un rango de fechas válido');
@@ -53,6 +57,8 @@ async function updateDashboard() {
     try {
         let url = `/api/dashboard/analytics?startDate=${startDate}&endDate=${endDate}`;
         if (id_area) url += `&id_area=${id_area}`;
+        if (region_id) url += `&region_id=${region_id}`;
+        if (pais_id) url += `&pais_id=${pais_id}`;
         const response = await fetch(url, {
             credentials: 'include'
         });
@@ -172,10 +178,16 @@ function renderProjectTypeChart(data) {
                         const startDate = document.getElementById('dash-start-date').value;
                         const endDate = document.getElementById('dash-end-date').value;
                         const areaSelect = document.getElementById('dash-area');
+                        const regionSelect = document.getElementById('dash-region');
+                        const paisSelect = document.getElementById('dash-pais');
                         const id_area = areaSelect && areaSelect.value ? areaSelect.value : (app?.state?.selectedAreaId || null);
+                        const region_id = regionSelect && regionSelect.value ? regionSelect.value : null;
+                        const pais_id = paisSelect && paisSelect.value ? paisSelect.value : null;
 
                         let url = `/api/dashboard/analytics?startDate=${startDate}&endDate=${endDate}`;
                         if (id_area) url += `&id_area=${id_area}`;
+                        if (region_id) url += `&region_id=${region_id}`;
+                        if (pais_id) url += `&pais_id=${pais_id}`;
                         fetch(url, {
                             credentials: 'include'
                         })
@@ -191,14 +203,20 @@ function renderProjectTypeChart(data) {
                         projectTypeChart.update();
 
                         // Re-fetch data and update collaborator chart with filter
-                        const startDate = document.getElementById('dash-start-date').value;
-                        const endDate = document.getElementById('dash-end-date').value;
-                        const areaSelect = document.getElementById('dash-area');
-                        const id_area = areaSelect && areaSelect.value ? areaSelect.value : (app?.state?.selectedAreaId || null);
+                        const startDate2 = document.getElementById('dash-start-date').value;
+                        const endDate2 = document.getElementById('dash-end-date').value;
+                        const areaSelect2 = document.getElementById('dash-area');
+                        const regionSelect2 = document.getElementById('dash-region');
+                        const paisSelect2 = document.getElementById('dash-pais');
+                        const id_area2 = areaSelect2 && areaSelect2.value ? areaSelect2.value : (app?.state?.selectedAreaId || null);
+                        const region_id2 = regionSelect2 && regionSelect2.value ? regionSelect2.value : null;
+                        const pais_id2 = paisSelect2 && paisSelect2.value ? paisSelect2.value : null;
 
-                        let url = `/api/dashboard/analytics?startDate=${startDate}&endDate=${endDate}`;
-                        if (id_area) url += `&id_area=${id_area}`;
-                        fetch(url, {
+                        let url2 = `/api/dashboard/analytics?startDate=${startDate2}&endDate=${endDate2}`;
+                        if (id_area2) url2 += `&id_area=${id_area2}`;
+                        if (region_id2) url2 += `&region_id=${region_id2}`;
+                        if (pais_id2) url2 += `&pais_id=${pais_id2}`;
+                        fetch(url2, {
                             credentials: 'include'
                         })
                             .then(res => res.json())
