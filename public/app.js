@@ -2627,8 +2627,14 @@ const app = {
         const ctx = document.getElementById('chart-scatter');
         if (!ctx) return;
 
+        // Destroy existing chart if any
+        const existingChart = Chart.getChart(ctx);
+        if (existingChart) {
+            existingChart.destroy();
+        }
         if (this.compCharts.scatter) {
             this.compCharts.scatter.destroy();
+            this.compCharts.scatter = null;
         }
 
         // Filter to only show clients with data
@@ -2739,8 +2745,14 @@ const app = {
         const ctx = document.getElementById('chart-trend');
         if (!ctx) return;
 
+        // Destroy existing chart if any
+        const existingChart = Chart.getChart(ctx);
+        if (existingChart) {
+            existingChart.destroy();
+        }
         if (this.compCharts.trend) {
             this.compCharts.trend.destroy();
+            this.compCharts.trend = null;
         }
 
         if (!porDia || porDia.length === 0) {
@@ -2853,8 +2865,14 @@ const app = {
         const ctx = document.getElementById('chart-variance');
         if (!ctx) return;
 
+        // Destroy existing chart if any
+        const existingChart = Chart.getChart(ctx);
+        if (existingChart) {
+            existingChart.destroy();
+        }
         if (this.compCharts.variance) {
             this.compCharts.variance.destroy();
+            this.compCharts.variance = null;
         }
 
         // Check if we have any real data
@@ -3077,8 +3095,14 @@ const app = {
         const ctx = document.getElementById('chart-colaborador');
         if (!ctx) return;
 
+        // Destroy existing chart if any
+        const existingChart = Chart.getChart(ctx);
+        if (existingChart) {
+            existingChart.destroy();
+        }
         if (this.compCharts.colaborador) {
             this.compCharts.colaborador.destroy();
+            this.compCharts.colaborador = null;
         }
 
         if (!detalle || detalle.length === 0) {
