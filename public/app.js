@@ -2716,7 +2716,7 @@ const app = {
                         color: '#333',
                         font: { size: 9 },
                         formatter: (value) => {
-                            if (!value.label) return '';
+                            if (!value || !value.label) return '';
                             return value.label.length > 15 ? value.label.substring(0, 15) + '...' : value.label;
                         }
                     }
@@ -2827,13 +2827,13 @@ const app = {
                     datalabels: {
                         display: (context) => {
                             // Only show on points with significant values
-                            return context.parsed.y > 0;
+                            return context.parsed && context.parsed.y > 0;
                         },
                         align: 'top',
                         offset: 4,
                         color: (context) => context.datasetIndex === 0 ? '#2980b9' : '#8e44ad',
                         font: { size: 9, weight: 'bold' },
-                        formatter: (value) => value.toFixed(1)
+                        formatter: (value) => typeof value === 'number' ? value.toFixed(1) : ''
                     }
                 },
                 scales: {
