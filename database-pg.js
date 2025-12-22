@@ -101,6 +101,8 @@ CREATE TABLE IF NOT EXISTS allocations (
     week_number INTEGER NOT NULL,
     year INTEGER NOT NULL,
     id_area INTEGER REFERENCES areas(id) ON DELETE SET NULL,
+    region_id INTEGER REFERENCES regiones(id) ON DELETE SET NULL,
+    pais_id INTEGER REFERENCES paises(id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(colaborador_id, cliente_id, date)
 );
@@ -304,6 +306,56 @@ async function runMigrations() {
                 AND region_id IS NULL
             `, [regionId, paisId]);
             console.log('Migration: Linked existing areas to Global region/country');
+        }
+
+        // Migration 5: Add region_id column to allocations if not exists
+        const checkAllocRegion = await pool.query(`
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = 'allocations' AND column_name = 'region_id'
+        `);
+
+        if (checkAllocRegion.rows.length === 0) {
+            await pool.query(`
+                ALTER TABLE allocations
+                ADD COLUMN region_id INTEGER REFERENCES regiones(id) ON DELETE SET NULL
+            `);
+            console.log('Migration: Added region_id column to allocations');
+        }
+
+        // Migration 6: Add pais_id column to allocations if not exists
+        const checkAllocPais = await pool.query(`
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = 'allocations' AND column_name = 'pais_id'
+        `);
+
+        if (checkAllocPais.rows.length === 0) {
+            await pool.query(`
+                ALTER TABLE allocations
+                ADD COLUMN pais_id INTEGER REFERENCES paises(id) ON DELETE SET NULL
+            `);
+            console.log('Migration: Added pais_id column to allocations');
+        }
+
+        // Create indexes for allocations region/pais
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_allocations_region ON allocations(region_id)`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_allocations_pais ON allocations(pais_id)`);
+
+        // Migration 7: Set Global for allocations without region/pais
+        if (globalRegion.rows.length > 0 && globalPais.rows.length > 0) {
+            const regionId = globalRegion.rows[0].id;
+            const paisId = globalPais.rows[0].id;
+
+            const updateResult = await pool.query(`
+                UPDATE allocations
+                SET region_id = $1, pais_id = $2
+                WHERE region_id IS NULL OR pais_id IS NULL
+            `, [regionId, paisId]);
+
+            if (updateResult.rowCount > 0) {
+                console.log(`Migration: Set Global for ${updateResult.rowCount} allocations`);
+            }
         }
 
     } catch (err) {
