@@ -189,6 +189,12 @@ const app = {
         }
     },
 
+    // Handler para cuando cambia el año en Planificación - recarga las semanas disponibles
+    async onPlanYearChange() {
+        await this.populateWeekDropdown();
+        await this.loadPlanning();
+    },
+
     async handleLogin() {
         console.log('[App] handleLogin called');
         const username = document.getElementById('login-username')?.value?.trim();
@@ -571,6 +577,12 @@ const app = {
         } catch (error) {
             console.error('[Viewer] Error loading weeks:', error);
         }
+    },
+
+    // Handler para cuando cambia el año en el Visor - recarga las semanas disponibles
+    async onViewerYearChange() {
+        await this.populateViewerWeekDropdown();
+        await this.loadViewer();
     },
 
     renderViewerGrid(allocations) {
