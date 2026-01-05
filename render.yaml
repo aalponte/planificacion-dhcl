@@ -2,7 +2,7 @@
 # Render Blueprint - PlanificacionDH
 # ==============================================
 # Deploy: Connect your GitHub repo to Render
-# This file auto-configures all services
+# Base de datos: Neon PostgreSQL (externa)
 
 services:
   - type: web
@@ -17,12 +17,9 @@ services:
       - key: SESSION_SECRET
         generateValue: true
       - key: DATABASE_URL
-        fromDatabase:
-          name: planificacion-db
-          property: connectionString
+        sync: false  # Se configura manualmente con Neon connection string
 
-databases:
-  - name: planificacion-db
-    plan: free
-    databaseName: planificacion
-    user: planificacion_user
+# NOTA: Ya no usamos la base de datos de Render
+# La BD está en Neon PostgreSQL (tier gratuito más generoso)
+# Configurar DATABASE_URL manualmente en Render Dashboard con:
+# postgresql://neondb_owner:***@ep-morning-cloud-acp4rgbt-pooler.sa-east-1.aws.neon.tech/planificacion?sslmode=require
