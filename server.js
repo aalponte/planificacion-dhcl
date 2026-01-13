@@ -2200,6 +2200,36 @@ app.get('/api/cor/comparativo', requireAuth, async (req, res) => {
                 : 0;
         });
 
+        // Por Mes (for monthly bar chart)
+        const porMes = {};
+        detalleArray.forEach(item => {
+            const mes = String(item.date).substring(0, 7);
+            if (!porMes[mes]) {
+                porMes[mes] = { mes, planificadas: 0, reales: 0 };
+            }
+            porMes[mes].planificadas += item.horas_planificadas;
+            porMes[mes].reales += item.horas_reales;
+        });
+
+        // Heatmap data: Cliente x Mes con cumplimiento
+        const heatmapData = {};
+        detalleArray.forEach(item => {
+            const mes = String(item.date).substring(0, 7);
+            const clienteKey = item.cliente_id || 'sin_cliente';
+            if (!heatmapData[clienteKey]) {
+                heatmapData[clienteKey] = {
+                    cliente_id: item.cliente_id,
+                    cliente_name: item.cliente_name || 'Sin Cliente',
+                    meses: {}
+                };
+            }
+            if (!heatmapData[clienteKey].meses[mes]) {
+                heatmapData[clienteKey].meses[mes] = { planificadas: 0, reales: 0 };
+            }
+            heatmapData[clienteKey].meses[mes].planificadas += item.horas_planificadas;
+            heatmapData[clienteKey].meses[mes].reales += item.horas_reales;
+        });
+
         // Scatter data for efficiency plot
         const scatterData = Object.values(porCliente).map(c => ({
             x: c.planificadas,
@@ -2222,7 +2252,9 @@ app.get('/api/cor/comparativo', requireAuth, async (req, res) => {
             resumen: totals,
             porCliente: Object.values(porCliente).sort((a, b) => Math.abs(b.diferencia) - Math.abs(a.diferencia)),
             porColaborador: Object.values(porColaborador).sort((a, b) => Math.abs(b.diferencia) - Math.abs(a.diferencia)),
-            porDia: Object.values(porDia).sort((a, b) => a.date.localeCompare(b.date)),
+            porDia: Object.values(porDia).sort((a, b) => String(a.date).localeCompare(String(b.date))),
+            porMes: Object.values(porMes).sort((a, b) => a.mes.localeCompare(b.mes)),
+            heatmapData: Object.values(heatmapData),
             scatterData,
             kpis: {
                 precision,

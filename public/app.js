@@ -2671,8 +2671,8 @@ const app = {
             this.selectedClientId = null;
 
             // Update charts
-            this.updateScatterChart(data.scatterData);
-            this.updateTrendChart(data.porDia);
+            this.updateHeatmapChart(data.heatmapData, data.porMes);
+            this.updateMonthlyBarChart(data.porMes);
             this.updateVarianceChart(data.porCliente);
             this.updateHeatmap(data.porCliente); // Changed to use porCliente for simpler display
 
@@ -2684,7 +2684,7 @@ const app = {
         }
     },
 
-    updateScatterChart(scatterData) {
+    updateHeatmapChart(heatmapData, porMes) {
         const ctx = document.getElementById('chart-scatter');
         if (!ctx) return;
 
@@ -2698,13 +2698,13 @@ const app = {
             this.compCharts.scatter = null;
         }
 
-        // Filter to only show clients with data
-        const filteredData = scatterData.filter(d => d.x > 0 || d.y > 0);
+        console.log('[HeatmapChart] heatmapData:', heatmapData);
+        console.log('[HeatmapChart] porMes:', porMes);
 
-        if (filteredData.length === 0) {
+        if (!heatmapData || heatmapData.length === 0 || !porMes || porMes.length === 0) {
             this.compCharts.scatter = new Chart(ctx, {
-                type: 'scatter',
-                data: { datasets: [] },
+                type: 'bar',
+                data: { labels: [], datasets: [] },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
@@ -2716,85 +2716,107 @@ const app = {
             return;
         }
 
-        // Calculate max value for diagonal line
-        const maxVal = Math.max(
-            ...filteredData.map(d => Math.max(d.x, d.y)),
-            10
-        ) * 1.1;
+        // Get all unique months sorted
+        const meses = porMes.map(m => m.mes).sort();
+        const mesesLabels = meses.map(m => {
+            const [year, month] = m.split('-');
+            const date = new Date(year, parseInt(month) - 1, 1);
+            return date.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' });
+        });
+
+        // Build datasets: one per client, showing cumplimiento % per month
+        const datasets = [];
+        const colors = [
+            'rgba(52, 152, 219, 0.8)',   // Blue
+            'rgba(155, 89, 182, 0.8)',   // Purple
+            'rgba(39, 174, 96, 0.8)',    // Green
+            'rgba(241, 196, 15, 0.8)',   // Yellow
+            'rgba(231, 76, 60, 0.8)',    // Red
+            'rgba(26, 188, 156, 0.8)',   // Teal
+            'rgba(230, 126, 34, 0.8)',   // Orange
+            'rgba(52, 73, 94, 0.8)'      // Dark gray
+        ];
+
+        // Take top 8 clients by total hours
+        const clientesOrdenados = heatmapData
+            .map(c => {
+                const totalHoras = Object.values(c.meses).reduce((sum, m) => sum + m.planificadas + m.reales, 0);
+                return { ...c, totalHoras };
+            })
+            .sort((a, b) => b.totalHoras - a.totalHoras)
+            .slice(0, 8);
+
+        clientesOrdenados.forEach((cliente, index) => {
+            const data = meses.map(mes => {
+                const mesData = cliente.meses[mes];
+                if (!mesData) return null;
+                // Si no hay planificadas pero sí reales, mostrar como 100% extra
+                if (mesData.planificadas === 0 && mesData.reales > 0) return 100;
+                if (mesData.planificadas === 0) return null;
+                const cumplimiento = (mesData.reales / mesData.planificadas) * 100;
+                return parseFloat(cumplimiento.toFixed(1));
+            });
+
+            datasets.push({
+                label: cliente.cliente_name.length > 20
+                    ? cliente.cliente_name.substring(0, 20) + '...'
+                    : cliente.cliente_name,
+                data: data,
+                backgroundColor: colors[index % colors.length],
+                borderColor: colors[index % colors.length].replace('0.8', '1'),
+                borderWidth: 1
+            });
+        });
 
         this.compCharts.scatter = new Chart(ctx, {
-            type: 'scatter',
+            type: 'bar',
             plugins: [ChartDataLabels],
             data: {
-                datasets: [{
-                    label: 'Clientes',
-                    data: filteredData,
-                    backgroundColor: filteredData.map(d => {
-                        if (d.y > d.x * 1.1) return 'rgba(231, 76, 60, 0.7)';  // Sobrepasado
-                        if (d.y < d.x * 0.9) return 'rgba(52, 152, 219, 0.7)'; // Subutilizado
-                        return 'rgba(39, 174, 96, 0.7)'; // Eficiente
-                    }),
-                    borderColor: filteredData.map(d => {
-                        if (d.y > d.x * 1.1) return '#c0392b';
-                        if (d.y < d.x * 0.9) return '#2980b9';
-                        return '#27ae60';
-                    }),
-                    borderWidth: 2,
-                    pointRadius: 8,
-                    pointHoverRadius: 12
-                }, {
-                    label: 'Línea ideal (1:1)',
-                    data: [{ x: 0, y: 0 }, { x: maxVal, y: maxVal }],
-                    type: 'line',
-                    borderColor: 'rgba(0, 0, 0, 0.3)',
-                    borderDash: [5, 5],
-                    borderWidth: 2,
-                    pointRadius: 0,
-                    fill: false
-                }]
+                labels: mesesLabels,
+                datasets: datasets
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false },
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            boxWidth: 12,
+                            font: { size: 10 }
+                        }
+                    },
                     tooltip: {
                         callbacks: {
                             label: (context) => {
-                                const d = context.raw;
-                                if (!d.label) return '';
-                                return `${d.label}: Plan ${d.x.toFixed(1)}h, Real ${d.y.toFixed(1)}h`;
+                                const value = context.parsed.y;
+                                if (value === null) return '';
+                                return `${context.dataset.label}: ${value.toFixed(1)}% cumplimiento`;
                             }
                         }
                     },
                     datalabels: {
                         display: (context) => {
-                            // Only show labels for scatter points, not the line
-                            return context.datasetIndex === 0;
+                            const val = context.parsed?.y;
+                            return val !== null && val !== undefined && val > 0;
                         },
-                        align: 'bottom',
-                        offset: 4,
+                        anchor: 'end',
+                        align: 'top',
+                        offset: -2,
                         color: '#333',
-                        font: { size: 9 },
-                        formatter: (value) => {
-                            if (!value || !value.label) return '';
-                            return value.label.length > 15 ? value.label.substring(0, 15) + '...' : value.label;
-                        }
+                        font: { size: 9, weight: 'bold' },
+                        formatter: (value) => (value !== null && value > 0) ? value.toFixed(0) + '%' : ''
                     }
                 },
                 scales: {
                     x: {
-                        title: { display: true, text: 'Horas Planificadas' },
-                        min: 0,
-                        ticks: {
-                            callback: (value) => value.toFixed(1)
-                        }
+                        title: { display: true, text: 'Mes' }
                     },
                     y: {
-                        title: { display: true, text: 'Horas Reales' },
-                        min: 0,
+                        beginAtZero: true,
+                        title: { display: true, text: '% Cumplimiento' },
                         ticks: {
-                            callback: (value) => value.toFixed(1)
+                            callback: (value) => value + '%'
                         }
                     }
                 }
@@ -2802,7 +2824,7 @@ const app = {
         });
     },
 
-    updateTrendChart(porDia) {
+    updateMonthlyBarChart(porMes) {
         const ctx = document.getElementById('chart-trend');
         if (!ctx) return;
 
@@ -2816,9 +2838,9 @@ const app = {
             this.compCharts.trend = null;
         }
 
-        if (!porDia || porDia.length === 0) {
+        if (!porMes || porMes.length === 0) {
             this.compCharts.trend = new Chart(ctx, {
-                type: 'line',
+                type: 'bar',
                 data: { labels: [], datasets: [] },
                 options: {
                     responsive: true,
@@ -2831,45 +2853,38 @@ const app = {
             return;
         }
 
-        // Format date labels (short format)
-        const labels = porDia.map(s => {
-            const d = new Date(s.date + 'T00:00:00');
-            return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+        // Format month labels
+        const labels = porMes.map(m => {
+            const [year, month] = m.mes.split('-');
+            const date = new Date(year, parseInt(month) - 1, 1);
+            return date.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' });
         });
-        const planificadas = porDia.map(s => s.planificadas);
-        const reales = porDia.map(s => s.reales);
+        const planificadas = porMes.map(m => parseFloat((m.planificadas || 0).toFixed(1)));
+        const reales = porMes.map(m => parseFloat((m.reales || 0).toFixed(1)));
 
-        // Check if we have real data
-        const hasRealData = reales.some(r => r > 0);
-
-        const datasets = [{
-            label: 'Planificadas',
-            data: planificadas,
-            borderColor: '#3498db',
-            backgroundColor: 'rgba(52, 152, 219, 0.1)',
-            fill: true,
-            tension: 0.3,
-            pointRadius: labels.length > 14 ? 2 : 4,
-            pointHoverRadius: 6
-        }];
-
-        // Only add reales dataset if there's data or always show it for comparison
-        datasets.push({
-            label: 'Reales' + (hasRealData ? '' : ' (sin datos COR)'),
-            data: reales,
-            borderColor: hasRealData ? '#9b59b6' : 'rgba(155, 89, 182, 0.3)',
-            backgroundColor: 'rgba(155, 89, 182, 0.1)',
-            fill: true,
-            tension: 0.3,
-            pointRadius: hasRealData ? (labels.length > 14 ? 2 : 4) : 1,
-            pointHoverRadius: 6,
-            borderDash: hasRealData ? [] : [5, 5]
-        });
+        console.log('[MonthlyBar] Labels:', labels);
+        console.log('[MonthlyBar] Planificadas:', planificadas);
+        console.log('[MonthlyBar] Reales:', reales);
 
         this.compCharts.trend = new Chart(ctx, {
-            type: 'line',
+            type: 'bar',
             plugins: [ChartDataLabels],
-            data: { labels, datasets },
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Planificadas',
+                    data: planificadas,
+                    backgroundColor: 'rgba(52, 152, 219, 0.8)',
+                    borderColor: '#3498db',
+                    borderWidth: 1
+                }, {
+                    label: 'Reales',
+                    data: reales,
+                    backgroundColor: 'rgba(155, 89, 182, 0.8)',
+                    borderColor: '#9b59b6',
+                    borderWidth: 1
+                }]
+            },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
@@ -2881,42 +2896,35 @@ const app = {
                     tooltip: {
                         callbacks: {
                             label: (context) => {
-                                return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}h`;
+                                const val = context.parsed?.y ?? 0;
+                                return `${context.dataset.label}: ${val.toFixed(1)}h`;
                             }
                         }
                     },
                     datalabels: {
                         display: (context) => {
-                            // Only show on points with significant values
-                            return context.parsed && context.parsed.y > 0;
+                            const val = context.parsed?.y;
+                            return val !== null && val !== undefined && val > 0;
                         },
+                        anchor: 'end',
                         align: 'top',
-                        offset: 4,
+                        offset: -2,
                         color: (context) => context.datasetIndex === 0 ? '#2980b9' : '#8e44ad',
-                        font: { size: 9, weight: 'bold' },
-                        formatter: (value) => typeof value === 'number' ? value.toFixed(1) : ''
+                        font: { size: 10, weight: 'bold' },
+                        formatter: (value) => (value && value > 0) ? value.toFixed(0) + 'h' : ''
                     }
                 },
                 scales: {
                     x: {
-                        ticks: {
-                            maxRotation: 45,
-                            minRotation: 0,
-                            autoSkip: true,
-                            maxTicksLimit: 10
-                        }
+                        title: { display: true, text: 'Mes' }
                     },
                     y: {
                         beginAtZero: true,
                         title: { display: true, text: 'Horas' },
                         ticks: {
-                            callback: (value) => value.toFixed(1)
+                            callback: (value) => value.toFixed(0)
                         }
                     }
-                },
-                interaction: {
-                    intersect: false,
-                    mode: 'index'
                 }
             }
         });
