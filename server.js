@@ -2222,7 +2222,7 @@ app.get('/api/cor/comparativo', requireAuth, async (req, res) => {
             resumen: totals,
             porCliente: Object.values(porCliente).sort((a, b) => Math.abs(b.diferencia) - Math.abs(a.diferencia)),
             porColaborador: Object.values(porColaborador).sort((a, b) => Math.abs(b.diferencia) - Math.abs(a.diferencia)),
-            porDia: Object.values(porDia).sort((a, b) => a.date.localeCompare(b.date)),
+            porDia: Object.values(porDia).sort((a, b) => String(a.date).localeCompare(String(b.date))),
             scatterData,
             kpis: {
                 precision,
