@@ -2240,7 +2240,7 @@ app.get('/api/cor/comparativo', requireAuth, async (req, res) => {
 });
 
 // CSV Import for COR hours (temporary until API is available)
-app.post('/api/cor/importar-horas-csv', requireAdmin, upload.single('file'), handleUploadError, (req, res) => {
+app.post('/api/cor/importar-horas-csv', requireAdmin, upload.single('file'), handleUploadError, async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
         const content = fs.readFileSync(req.file.path, 'utf-8');
@@ -2252,10 +2252,8 @@ app.post('/api/cor/importar-horas-csv', requireAdmin, upload.single('file'), han
         }
 
         const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-        let count = 0;
-        let errors = [];
 
-        // Expected columns: fecha, colaborador, cliente, horas, proyecto_cor (optional)
+        // Expected columns: fecha, colaborador, cliente, horas
         const fechaIdx = headers.findIndex(h => h.includes('fecha'));
         const colabIdx = headers.findIndex(h => h.includes('colaborador') || h.includes('usuario'));
         const clienteIdx = headers.findIndex(h => h.includes('cliente') || h.includes('proyecto'));
@@ -2268,54 +2266,115 @@ app.post('/api/cor/importar-horas-csv', requireAdmin, upload.single('file'), han
             });
         }
 
-        lines.slice(1).forEach((line, idx) => {
+        // Helper functions for async DB operations
+        const dbAll = (sql, params = []) => new Promise((resolve, reject) => {
+            db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows));
+        });
+        const dbRun = (sql, params = []) => new Promise((resolve, reject) => {
+            db.run(sql, params, function(err) { err ? reject(err) : resolve(this); });
+        });
+
+        // Load colaboradores and clientes for name matching
+        const colaboradores = await dbAll('SELECT id, name FROM colaboradores');
+        const clientes = await dbAll('SELECT id, name FROM clientes');
+
+        // Create lookup maps (lowercase name -> id)
+        const colabMap = {};
+        colaboradores.forEach(c => { colabMap[c.name.toLowerCase().trim()] = c.id; });
+        const clienteMap = {};
+        clientes.forEach(c => { clienteMap[c.name.toLowerCase().trim()] = c.id; });
+
+        // Function to calculate ISO week number
+        const getWeekNumber = (date) => {
+            const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+            const dayNum = d.getUTCDay() || 7;
+            d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+            const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+            return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+        };
+
+        let count = 0;
+        let errors = [];
+        let colabNotFound = new Set();
+        let clienteNotFound = new Set();
+
+        // Process each line
+        for (let idx = 1; idx < lines.length; idx++) {
+            const line = lines[idx];
             const values = line.split(',').map(v => v.trim());
             const fecha = values[fechaIdx];
-            const colaborador = values[colabIdx];
-            const cliente = clienteIdx >= 0 ? values[clienteIdx] : null;
+            const colaboradorName = values[colabIdx];
+            const clienteName = clienteIdx >= 0 ? values[clienteIdx] : null;
             const horas = parseFloat(values[horasIdx]);
 
-            if (!fecha || !colaborador || isNaN(horas)) {
-                errors.push(`Línea ${idx + 2}: datos incompletos`);
-                return;
+            if (!fecha || !colaboradorName || isNaN(horas)) {
+                errors.push(`Línea ${idx + 1}: datos incompletos`);
+                continue;
             }
 
-            // Calculate week number from date
-            const dateObj = new Date(fecha);
+            // Parse and validate date
+            const dateObj = new Date(fecha + 'T00:00:00');
             if (isNaN(dateObj.getTime())) {
-                errors.push(`Línea ${idx + 2}: fecha inválida`);
-                return;
+                errors.push(`Línea ${idx + 1}: fecha inválida '${fecha}'`);
+                continue;
             }
 
-            const year = dateObj.getFullYear();
-            const oneJan = new Date(year, 0, 1);
-            const numberOfDays = Math.floor((dateObj - oneJan) / (24 * 60 * 60 * 1000));
-            const week_number = Math.ceil((dateObj.getDay() + 1 + numberOfDays) / 7);
+            // Find colaborador ID
+            const colaboradorId = colabMap[colaboradorName.toLowerCase().trim()];
+            if (!colaboradorId) {
+                colabNotFound.add(colaboradorName);
+                errors.push(`Línea ${idx + 1}: colaborador '${colaboradorName}' no encontrado`);
+                continue;
+            }
 
-            // Insert or update hour record
-            db.run(`
-                INSERT INTO horas_reales_cor
-                (cor_user_name, cor_project_name, fecha, horas, week_number, year, status, sincronizado_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'imported', CURRENT_TIMESTAMP)
-            `, [colaborador, cliente, fecha, horas, week_number, year]);
-            count++;
-        });
+            // Find cliente ID
+            const clienteId = clienteName ? clienteMap[clienteName.toLowerCase().trim()] : null;
+            if (clienteName && !clienteId) {
+                clienteNotFound.add(clienteName);
+                errors.push(`Línea ${idx + 1}: cliente '${clienteName}' no encontrado`);
+                continue;
+            }
+
+            // Calculate week_number and year from date
+            const year = dateObj.getFullYear();
+            const week_number = getWeekNumber(dateObj);
+
+            // Insert record
+            try {
+                await dbRun(`
+                    INSERT INTO horas_reales_cor
+                    (colaborador_id, cliente_id, fecha, horas, week_number, year, status, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, 'imported', CURRENT_TIMESTAMP)
+                `, [colaboradorId, clienteId, fecha, horas, week_number, year]);
+                count++;
+            } catch (insertErr) {
+                errors.push(`Línea ${idx + 1}: error al insertar - ${insertErr.message}`);
+            }
+        }
 
         fs.unlinkSync(req.file.path);
 
+        // Build response
+        let message = `Importados ${count} registros correctamente`;
+        const response = { message, count };
+
         if (errors.length > 0) {
-            res.json({
-                message: `Importados ${count} registros con ${errors.length} errores`,
-                errors: errors.slice(0, 10)
-            });
-        } else {
-            res.json({ message: `Importados ${count} registros correctamente` });
+            response.message = `Importados ${count} registros con ${errors.length} errores`;
+            response.errors = errors.slice(0, 20);
+            if (colabNotFound.size > 0) {
+                response.colaboradoresNoEncontrados = Array.from(colabNotFound);
+            }
+            if (clienteNotFound.size > 0) {
+                response.clientesNoEncontrados = Array.from(clienteNotFound);
+            }
         }
+
+        res.json(response);
 
     } catch (error) {
         console.error('Import error:', error);
         if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-        res.status(500).json({ error: 'Error al importar' });
+        res.status(500).json({ error: 'Error al importar: ' + error.message });
     }
 });
 
