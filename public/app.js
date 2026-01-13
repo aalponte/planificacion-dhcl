@@ -2718,11 +2718,21 @@ const app = {
 
         // Get all unique months sorted
         const meses = porMes.map(m => m.mes).sort();
+        console.log('[HeatmapChart] meses raw:', meses);
         const mesesLabels = meses.map(m => {
-            const [year, month] = m.split('-');
-            const date = new Date(year, parseInt(month) - 1, 1);
+            if (!m || typeof m !== 'string' || !m.includes('-')) {
+                return String(m || 'N/A');
+            }
+            const parts = m.split('-');
+            if (parts.length < 2) return String(m);
+            const year = parseInt(parts[0]);
+            const month = parseInt(parts[1]) - 1;
+            if (isNaN(year) || isNaN(month)) return String(m);
+            const date = new Date(year, month, 1);
+            if (isNaN(date.getTime())) return String(m);
             return date.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' });
         });
+        console.log('[HeatmapChart] mesesLabels:', mesesLabels);
 
         // Build datasets: one per client, showing cumplimiento % per month
         const datasets = [];
@@ -2854,11 +2864,23 @@ const app = {
         }
 
         // Format month labels
+        console.log('[MonthlyBar] porMes raw:', JSON.stringify(porMes));
         const labels = porMes.map(m => {
-            const [year, month] = m.mes.split('-');
-            const date = new Date(year, parseInt(month) - 1, 1);
+            const mesStr = String(m.mes);
+            console.log('[MonthlyBar] procesando mes:', mesStr, typeof mesStr);
+            if (!mesStr || typeof mesStr !== 'string' || !mesStr.includes('-')) {
+                return String(mesStr || 'N/A');
+            }
+            const parts = mesStr.split('-');
+            if (parts.length < 2) return String(mesStr);
+            const year = parseInt(parts[0]);
+            const month = parseInt(parts[1]) - 1;
+            if (isNaN(year) || isNaN(month)) return String(mesStr);
+            const date = new Date(year, month, 1);
+            if (isNaN(date.getTime())) return String(mesStr);
             return date.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' });
         });
+        console.log('[MonthlyBar] labels formatted:', labels);
         const planificadas = porMes.map(m => parseFloat((m.planificadas || 0).toFixed(1)));
         const reales = porMes.map(m => parseFloat((m.reales || 0).toFixed(1)));
 

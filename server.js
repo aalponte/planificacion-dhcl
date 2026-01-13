@@ -2200,10 +2200,32 @@ app.get('/api/cor/comparativo', requireAuth, async (req, res) => {
                 : 0;
         });
 
+        // Helper to normalize date to YYYY-MM format
+        const getYearMonth = (dateVal) => {
+            if (!dateVal) return null;
+            // If it's a Date object, convert to ISO string
+            if (dateVal instanceof Date) {
+                return dateVal.toISOString().substring(0, 7);
+            }
+            // If it's a string, try to parse it
+            const str = String(dateVal);
+            // Already in YYYY-MM or YYYY-MM-DD format
+            if (/^\d{4}-\d{2}/.test(str)) {
+                return str.substring(0, 7);
+            }
+            // Try to create a Date and convert
+            const d = new Date(str);
+            if (!isNaN(d.getTime())) {
+                return d.toISOString().substring(0, 7);
+            }
+            return null;
+        };
+
         // Por Mes (for monthly bar chart)
         const porMes = {};
         detalleArray.forEach(item => {
-            const mes = String(item.date).substring(0, 7);
+            const mes = getYearMonth(item.date);
+            if (!mes) return;
             if (!porMes[mes]) {
                 porMes[mes] = { mes, planificadas: 0, reales: 0 };
             }
@@ -2214,7 +2236,8 @@ app.get('/api/cor/comparativo', requireAuth, async (req, res) => {
         // Heatmap data: Cliente x Mes con cumplimiento
         const heatmapData = {};
         detalleArray.forEach(item => {
-            const mes = String(item.date).substring(0, 7);
+            const mes = getYearMonth(item.date);
+            if (!mes) return;
             const clienteKey = item.cliente_id || 'sin_cliente';
             if (!heatmapData[clienteKey]) {
                 heatmapData[clienteKey] = {
