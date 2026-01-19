@@ -11,6 +11,7 @@ const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const validator = require('validator');
 const crypto = require('crypto');
+const XLSX = require('xlsx');
 const db = require('./db');
 
 const app = express();
@@ -140,15 +141,21 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-    // Only allow CSV files
-    const allowedMimes = ['text/csv', 'application/vnd.ms-excel', 'text/plain'];
-    const allowedExts = ['.csv'];
+    // Allow CSV and Excel files
+    const allowedMimes = [
+        'text/csv',
+        'application/vnd.ms-excel',
+        'text/plain',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+        'application/wps-office.xlsx' // Some systems report this for xlsx
+    ];
+    const allowedExts = ['.csv', '.xlsx', '.xls'];
     const ext = path.extname(file.originalname).toLowerCase();
 
     if (allowedMimes.includes(file.mimetype) || allowedExts.includes(ext)) {
         cb(null, true);
     } else {
-        cb(new Error('Solo se permiten archivos CSV'), false);
+        cb(new Error('Solo se permiten archivos CSV o Excel (.xlsx, .xls)'), false);
     }
 };
 
@@ -2429,6 +2436,456 @@ app.post('/api/cor/importar-horas-csv', requireAdmin, upload.single('file'), han
     } catch (error) {
         console.error('Import error:', error);
         if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        res.status(500).json({ error: 'Error al importar: ' + error.message });
+    }
+});
+
+// ============================================
+// COR Excel Import with Preview (NEW)
+// ============================================
+
+// Helper: Calculate ISO week number
+const getISOWeekNumber = (date) => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+};
+
+// Helper: Normalize string for comparison
+const normalizeString = (str) => {
+    if (!str) return '';
+    return str.toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
+        .replace(/\s+/g, ' ')
+        .trim();
+};
+
+// Helper: Check if two strings are similar (fuzzy match)
+const isSimilar = (str1, str2) => {
+    const n1 = normalizeString(str1);
+    const n2 = normalizeString(str2);
+    if (!n1 || !n2) return false;
+    if (n1 === n2) return true;
+    if (n1.includes(n2) || n2.includes(n1)) return true;
+    // Check if first and last name match in any order
+    const parts1 = n1.split(' ').filter(p => p.length > 2);
+    const parts2 = n2.split(' ').filter(p => p.length > 2);
+    const matches = parts1.filter(p => parts2.includes(p));
+    return matches.length >= 2;
+};
+
+// POST /api/cor/preview-import - Parse Excel and return preview with mapping suggestions
+app.post('/api/cor/preview-import', requireAdmin, upload.single('file'), handleUploadError, async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
+
+        const filePath = req.file.path;
+        const ext = path.extname(req.file.originalname).toLowerCase();
+
+        if (ext !== '.xlsx' && ext !== '.xls') {
+            fs.unlinkSync(filePath);
+            return res.status(400).json({ error: 'El archivo debe ser Excel (.xlsx o .xls)' });
+        }
+
+        // Promisify db functions
+        const dbAll = (sql, params = []) => new Promise((resolve, reject) => {
+            db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows));
+        });
+
+        // Read Excel file
+        const workbook = XLSX.readFile(filePath);
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const range = XLSX.utils.decode_range(sheet['!ref']);
+
+        // Find header row (look for "ID de Hora" or "Usuario")
+        let headerRow = 4; // Default
+        for (let r = 0; r <= Math.min(10, range.e.r); r++) {
+            const cell = sheet[XLSX.utils.encode_cell({r, c: 0})];
+            if (cell && cell.v && String(cell.v).toLowerCase().includes('id de hora')) {
+                headerRow = r;
+                break;
+            }
+        }
+
+        // Get headers
+        const headers = [];
+        for (let c = 0; c <= range.e.c; c++) {
+            const cell = sheet[XLSX.utils.encode_cell({r: headerRow, c})];
+            headers.push(cell ? String(cell.v).trim() : '');
+        }
+
+        // Find column indices
+        const colIdx = {
+            idHora: headers.findIndex(h => h.toLowerCase().includes('id de hora')),
+            usuario: headers.findIndex(h => h.toLowerCase() === 'usuario'),
+            email: headers.findIndex(h => h.toLowerCase() === 'email'),
+            comienzo: headers.findIndex(h => h.toLowerCase() === 'comienzo'),
+            tiempoMin: headers.findIndex(h => h.toLowerCase() === 'tiempomin'),
+            cliente: headers.findIndex(h => h.toLowerCase() === 'cliente'),
+            proyecto: headers.findIndex(h => h.toLowerCase() === 'proyecto')
+        };
+
+        if (colIdx.usuario === -1 || colIdx.comienzo === -1 || colIdx.tiempoMin === -1) {
+            fs.unlinkSync(filePath);
+            return res.status(400).json({
+                error: 'Formato de Excel no reconocido. Se requieren columnas: Usuario, Comienzo, TiempoMin'
+            });
+        }
+
+        // Load data for mapping
+        const colaboradores = await dbAll('SELECT id, name FROM colaboradores');
+        const clientes = await dbAll('SELECT id, name FROM clientes');
+        const mapeoUsuarios = await dbAll('SELECT * FROM mapeo_usuarios_cor');
+        const mapeoProyectos = await dbAll('SELECT * FROM mapeo_proyectos_cor');
+        const horasExistentes = await dbAll('SELECT cor_counter_id, colaborador_id, cliente_id, fecha FROM horas_reales_cor');
+
+        // Create lookup maps
+        const existingCorIds = new Set(horasExistentes.filter(h => h.cor_counter_id).map(h => h.cor_counter_id));
+        const existingByKey = new Map();
+        horasExistentes.forEach(h => {
+            const key = `${h.colaborador_id}-${h.cliente_id}-${h.fecha}`;
+            if (!existingByKey.has(key)) existingByKey.set(key, []);
+            existingByKey.get(key).push(h);
+        });
+
+        // Mapeo lookups
+        const mapeoUsuariosByEmail = new Map();
+        const mapeoUsuariosByName = new Map();
+        mapeoUsuarios.forEach(m => {
+            if (m.cor_user_email) mapeoUsuariosByEmail.set(normalizeString(m.cor_user_email), m.colaborador_id);
+            if (m.cor_user_name) mapeoUsuariosByName.set(normalizeString(m.cor_user_name), m.colaborador_id);
+        });
+
+        const mapeoProyectosByCliente = new Map();
+        const mapeoProyectosByProyecto = new Map();
+        mapeoProyectos.forEach(m => {
+            if (m.cor_client_name) mapeoProyectosByCliente.set(normalizeString(m.cor_client_name), m.cliente_id);
+            if (m.cor_project_name) mapeoProyectosByProyecto.set(normalizeString(m.cor_project_name), m.cliente_id);
+        });
+
+        // Parse rows
+        const rows = [];
+        const usuariosSinMapear = new Map();
+        const proyectosSinMapear = new Map();
+
+        for (let r = headerRow + 1; r <= range.e.r; r++) {
+            const getCell = (c) => {
+                const cell = sheet[XLSX.utils.encode_cell({r, c})];
+                return cell ? cell.v : null;
+            };
+
+            const idHora = colIdx.idHora >= 0 ? getCell(colIdx.idHora) : null;
+            const usuario = getCell(colIdx.usuario);
+            const email = colIdx.email >= 0 ? getCell(colIdx.email) : null;
+            const comienzoRaw = getCell(colIdx.comienzo);
+            const tiempoMin = getCell(colIdx.tiempoMin);
+            const clienteCor = colIdx.cliente >= 0 ? getCell(colIdx.cliente) : null;
+            const proyectoCor = colIdx.proyecto >= 0 ? getCell(colIdx.proyecto) : null;
+
+            // Skip empty rows
+            if (!usuario || tiempoMin === null || tiempoMin === undefined) continue;
+
+            // Parse date
+            let fecha = null;
+            if (comienzoRaw) {
+                if (typeof comienzoRaw === 'number') {
+                    // Excel serial date
+                    const dateObj = XLSX.SSF.parse_date_code(comienzoRaw);
+                    fecha = `${dateObj.y}-${String(dateObj.m).padStart(2, '0')}-${String(dateObj.d).padStart(2, '0')}`;
+                } else if (typeof comienzoRaw === 'string') {
+                    const match = comienzoRaw.match(/(\d{4})-(\d{2})-(\d{2})/);
+                    if (match) fecha = `${match[1]}-${match[2]}-${match[3]}`;
+                }
+            }
+
+            if (!fecha) continue;
+
+            const horas = Number(tiempoMin) / 60;
+            const year = parseInt(fecha.substring(0, 4));
+            const dateObj = new Date(fecha + 'T00:00:00');
+            const weekNumber = getISOWeekNumber(dateObj);
+
+            // Find colaborador mapping
+            let colaboradorId = null;
+            let colaboradorSuggestion = null;
+
+            // 1. Check existing mapping by email
+            if (email && mapeoUsuariosByEmail.has(normalizeString(email))) {
+                colaboradorId = mapeoUsuariosByEmail.get(normalizeString(email));
+            }
+            // 2. Check existing mapping by name
+            if (!colaboradorId && usuario && mapeoUsuariosByName.has(normalizeString(usuario))) {
+                colaboradorId = mapeoUsuariosByName.get(normalizeString(usuario));
+            }
+            // 3. Try to find by email match in colaboradores (future: add email field)
+            // 4. Try fuzzy match by name
+            if (!colaboradorId) {
+                for (const colab of colaboradores) {
+                    if (isSimilar(usuario, colab.name)) {
+                        colaboradorSuggestion = colab.id;
+                        break;
+                    }
+                }
+            }
+
+            // Find cliente mapping
+            let clienteId = null;
+            let clienteSuggestion = null;
+            const clienteCorNorm = normalizeString(clienteCor);
+            const proyectoCorNorm = normalizeString(proyectoCor);
+
+            // 1. Check existing mapping by cliente
+            if (clienteCorNorm && mapeoProyectosByCliente.has(clienteCorNorm)) {
+                clienteId = mapeoProyectosByCliente.get(clienteCorNorm);
+            }
+            // 2. Check existing mapping by proyecto
+            if (!clienteId && proyectoCorNorm && mapeoProyectosByProyecto.has(proyectoCorNorm)) {
+                clienteId = mapeoProyectosByProyecto.get(proyectoCorNorm);
+            }
+            // 3. Try fuzzy match
+            if (!clienteId) {
+                for (const cli of clientes) {
+                    if (isSimilar(clienteCor, cli.name) || isSimilar(proyectoCor, cli.name)) {
+                        clienteSuggestion = cli.id;
+                        break;
+                    }
+                }
+            }
+
+            // Check if duplicate
+            const isDuplicateById = idHora && existingCorIds.has(idHora);
+            let duplicateInfo = null;
+
+            if (colaboradorId && clienteId) {
+                const key = `${colaboradorId}-${clienteId}-${fecha}`;
+                if (existingByKey.has(key)) {
+                    duplicateInfo = existingByKey.get(key);
+                }
+            }
+
+            // Track unmapped
+            if (!colaboradorId && !colaboradorSuggestion) {
+                const key = normalizeString(usuario);
+                if (!usuariosSinMapear.has(key)) {
+                    usuariosSinMapear.set(key, { nombre: usuario, email: email, count: 0 });
+                }
+                usuariosSinMapear.get(key).count++;
+            }
+
+            if (!clienteId && !clienteSuggestion && (clienteCor || proyectoCor)) {
+                const key = normalizeString(clienteCor || proyectoCor);
+                if (!proyectosSinMapear.has(key)) {
+                    proyectosSinMapear.set(key, { cliente: clienteCor, proyecto: proyectoCor, count: 0 });
+                }
+                proyectosSinMapear.get(key).count++;
+            }
+
+            rows.push({
+                rowNum: r + 1,
+                idHora,
+                usuario: usuario ? usuario.trim() : null,
+                email: email ? email.trim() : null,
+                clienteCor: clienteCor ? clienteCor.trim() : null,
+                proyectoCor: proyectoCor ? proyectoCor.trim() : null,
+                fecha,
+                horas: Math.round(horas * 100) / 100,
+                weekNumber,
+                year,
+                colaboradorId: colaboradorId || colaboradorSuggestion,
+                colaboradorMapped: !!colaboradorId,
+                clienteId: clienteId || clienteSuggestion,
+                clienteMapped: !!clienteId,
+                isDuplicate: isDuplicateById || !!duplicateInfo,
+                duplicateInfo: duplicateInfo ? duplicateInfo.map(d => ({ id: d.id })) : null
+            });
+        }
+
+        // Clean up file
+        fs.unlinkSync(filePath);
+
+        // Summary
+        const mapped = rows.filter(r => r.colaboradorId && r.clienteId);
+        const unmapped = rows.filter(r => !r.colaboradorId || !r.clienteId);
+        const duplicates = rows.filter(r => r.isDuplicate);
+
+        res.json({
+            success: true,
+            totalRows: rows.length,
+            summary: {
+                listos: mapped.length - duplicates.filter(d => mapped.includes(d)).length,
+                sinMapear: unmapped.length,
+                duplicados: duplicates.length
+            },
+            rows,
+            usuariosSinMapear: Array.from(usuariosSinMapear.values()),
+            proyectosSinMapear: Array.from(proyectosSinMapear.values()),
+            colaboradores: colaboradores.map(c => ({ id: c.id, name: c.name })),
+            clientes: clientes.map(c => ({ id: c.id, name: c.name }))
+        });
+
+    } catch (error) {
+        console.error('[Preview Import] Error:', error);
+        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        res.status(500).json({ error: 'Error al procesar archivo: ' + error.message });
+    }
+});
+
+// POST /api/cor/confirmar-import - Confirm and import mapped rows
+app.post('/api/cor/confirmar-import', requireAdmin, async (req, res) => {
+    try {
+        const { rows, duplicateAction, saveMapeos } = req.body;
+
+        if (!rows || !Array.isArray(rows) || rows.length === 0) {
+            return res.status(400).json({ error: 'No hay filas para importar' });
+        }
+
+        const dbAll = (sql, params = []) => new Promise((resolve, reject) => {
+            db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows));
+        });
+        const dbRun = (sql, params = []) => new Promise((resolve, reject) => {
+            db.run(sql, params, function(err) { err ? reject(err) : resolve(this); });
+        });
+        const dbGet = (sql, params = []) => new Promise((resolve, reject) => {
+            db.get(sql, params, (err, row) => err ? reject(err) : resolve(row));
+        });
+
+        let inserted = 0;
+        let updated = 0;
+        let skipped = 0;
+        let errors = [];
+
+        // Save new mapeos if requested
+        if (saveMapeos) {
+            const mapeoUsuariosExistentes = await dbAll('SELECT cor_user_email, cor_user_name FROM mapeo_usuarios_cor');
+            const mapeoProyectosExistentes = await dbAll('SELECT cor_client_name, cor_project_name FROM mapeo_proyectos_cor');
+
+            const emailsExistentes = new Set(mapeoUsuariosExistentes.map(m => normalizeString(m.cor_user_email)));
+            const nombresExistentes = new Set(mapeoUsuariosExistentes.map(m => normalizeString(m.cor_user_name)));
+            const clientesExistentes = new Set(mapeoProyectosExistentes.map(m => normalizeString(m.cor_client_name)));
+            const proyectosExistentes = new Set(mapeoProyectosExistentes.map(m => normalizeString(m.cor_project_name)));
+
+            // Collect unique mappings from rows
+            const newUserMapeos = new Map();
+            const newProjectMapeos = new Map();
+
+            for (const row of rows) {
+                if (row.colaboradorId && row.email && !emailsExistentes.has(normalizeString(row.email))) {
+                    const key = normalizeString(row.email);
+                    if (!newUserMapeos.has(key)) {
+                        newUserMapeos.set(key, {
+                            email: row.email,
+                            nombre: row.usuario,
+                            colaboradorId: row.colaboradorId
+                        });
+                    }
+                }
+                if (row.clienteId) {
+                    if (row.clienteCor && !clientesExistentes.has(normalizeString(row.clienteCor))) {
+                        const key = normalizeString(row.clienteCor);
+                        if (!newProjectMapeos.has(key)) {
+                            newProjectMapeos.set(key, {
+                                cliente: row.clienteCor,
+                                proyecto: row.proyectoCor,
+                                clienteId: row.clienteId
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Insert new user mapeos
+            for (const mapeo of newUserMapeos.values()) {
+                try {
+                    await dbRun(`
+                        INSERT INTO mapeo_usuarios_cor (cor_user_name, cor_user_email, colaborador_id, vinculacion_automatica, created_at)
+                        VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
+                    `, [mapeo.nombre, mapeo.email, mapeo.colaboradorId]);
+                } catch (e) {
+                    // Ignore duplicates
+                }
+            }
+
+            // Insert new project mapeos
+            for (const mapeo of newProjectMapeos.values()) {
+                try {
+                    await dbRun(`
+                        INSERT INTO mapeo_proyectos_cor (cor_project_name, cor_client_name, cliente_id, vinculacion_automatica, created_at)
+                        VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
+                    `, [mapeo.proyecto, mapeo.cliente, mapeo.clienteId]);
+                } catch (e) {
+                    // Ignore duplicates
+                }
+            }
+        }
+
+        // Process each row
+        for (const row of rows) {
+            if (!row.colaboradorId || !row.clienteId) {
+                skipped++;
+                continue;
+            }
+
+            try {
+                // Check for existing record
+                let existing = null;
+                if (row.idHora) {
+                    existing = await dbGet('SELECT * FROM horas_reales_cor WHERE cor_counter_id = ?', [row.idHora]);
+                }
+                if (!existing) {
+                    existing = await dbGet(
+                        'SELECT * FROM horas_reales_cor WHERE colaborador_id = ? AND cliente_id = ? AND fecha = ?',
+                        [row.colaboradorId, row.clienteId, row.fecha]
+                    );
+                }
+
+                if (existing) {
+                    // Handle duplicate
+                    if (duplicateAction === 'update') {
+                        await dbRun(`
+                            UPDATE horas_reales_cor
+                            SET horas = ?, week_number = ?, year = ?, cor_counter_id = COALESCE(?, cor_counter_id)
+                            WHERE id = ?
+                        `, [row.horas, row.weekNumber, row.year, row.idHora, existing.id]);
+                        updated++;
+                    } else if (duplicateAction === 'sum') {
+                        await dbRun(`
+                            UPDATE horas_reales_cor
+                            SET horas = horas + ?, cor_counter_id = COALESCE(?, cor_counter_id)
+                            WHERE id = ?
+                        `, [row.horas, row.idHora, existing.id]);
+                        updated++;
+                    } else {
+                        // ignore
+                        skipped++;
+                    }
+                } else {
+                    // Insert new
+                    await dbRun(`
+                        INSERT INTO horas_reales_cor
+                        (cor_counter_id, colaborador_id, cliente_id, fecha, horas, week_number, year, status, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 'imported', CURRENT_TIMESTAMP)
+                    `, [row.idHora, row.colaboradorId, row.clienteId, row.fecha, row.horas, row.weekNumber, row.year]);
+                    inserted++;
+                }
+            } catch (err) {
+                errors.push(`Fila ${row.rowNum}: ${err.message}`);
+            }
+        }
+
+        res.json({
+            success: true,
+            message: `Importación completada: ${inserted} nuevos, ${updated} actualizados, ${skipped} ignorados`,
+            inserted,
+            updated,
+            skipped,
+            errors: errors.length > 0 ? errors.slice(0, 10) : undefined
+        });
+
+    } catch (error) {
+        console.error('[Confirmar Import] Error:', error);
         res.status(500).json({ error: 'Error al importar: ' + error.message });
     }
 });

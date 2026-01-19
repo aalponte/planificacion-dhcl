@@ -553,17 +553,188 @@
                             </button>
                         </div>
                         <hr class="cor-divider">
-                        <h3 class="cor-section-title">Importar Horas desde CSV (temporal)</h3>
+                        <h3 class="cor-section-title">Importar Horas desde Excel</h3>
                         <p class="cor-description">
-                            Mientras no tengas credenciales de API, puedes importar horas desde un archivo CSV exportado de COR.
+                            Importa horas reales desde un archivo Excel exportado de COR. El sistema detectará automáticamente las columnas y sugerirá mapeos.
                         </p>
                         <div class="form-group">
-                            <label>Archivo CSV (columnas: fecha, colaborador/usuario, cliente/proyecto, horas)</label>
-                            <input type="file" id="cor-csv-file" accept=".csv" class="form-control">
+                            <label>Archivo Excel (.xlsx)</label>
+                            <input type="file" id="cor-excel-file" accept=".xlsx,.xls" class="form-control">
                         </div>
-                        <button class="btn btn-secondary" onclick="app.importCorCsv()">
-                            <i class="fas fa-upload"></i> Importar CSV
+                        <button class="btn btn-primary" onclick="app.previewCorImport()">
+                            <i class="fas fa-file-excel"></i> Cargar y Previsualizar
                         </button>
+                    </div>
+                </div>
+
+                <!-- Modal: Import Preview -->
+                <div id="modal-cor-import" class="modal hidden">
+                    <div class="modal-content modal-xl">
+                        <div class="modal-header">
+                            <h2><i class="fas fa-file-import"></i> Importar Horas desde COR</h2>
+                            <button class="modal-close" onclick="app.closeCorImportModal()">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <!-- Stepper -->
+                            <div class="import-stepper">
+                                <div class="step active" data-step="1">
+                                    <span class="step-number">1</span>
+                                    <span class="step-label">Preview</span>
+                                </div>
+                                <div class="step-line"></div>
+                                <div class="step" data-step="2">
+                                    <span class="step-number">2</span>
+                                    <span class="step-label">Mapeo</span>
+                                </div>
+                                <div class="step-line"></div>
+                                <div class="step" data-step="3">
+                                    <span class="step-number">3</span>
+                                    <span class="step-label">Confirmar</span>
+                                </div>
+                            </div>
+
+                            <!-- Step 1: Preview -->
+                            <div id="import-step-1" class="import-step">
+                                <div class="import-summary-cards">
+                                    <div class="summary-card success">
+                                        <i class="fas fa-check-circle"></i>
+                                        <div class="summary-value" id="summary-listos">0</div>
+                                        <div class="summary-label">Listos para importar</div>
+                                    </div>
+                                    <div class="summary-card warning">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        <div class="summary-value" id="summary-sin-mapear">0</div>
+                                        <div class="summary-label">Sin mapear</div>
+                                    </div>
+                                    <div class="summary-card info">
+                                        <i class="fas fa-copy"></i>
+                                        <div class="summary-value" id="summary-duplicados">0</div>
+                                        <div class="summary-label">Duplicados</div>
+                                    </div>
+                                </div>
+                                <div class="import-filters">
+                                    <label>
+                                        <input type="checkbox" id="filter-sin-mapear" onchange="app.filterImportRows()">
+                                        Mostrar solo sin mapear
+                                    </label>
+                                    <label>
+                                        <input type="checkbox" id="filter-duplicados" onchange="app.filterImportRows()">
+                                        Mostrar solo duplicados
+                                    </label>
+                                </div>
+                                <div class="import-table-container">
+                                    <table class="data-table import-preview-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Fila</th>
+                                                <th>Usuario COR</th>
+                                                <th>Colaborador</th>
+                                                <th>Cliente/Proyecto COR</th>
+                                                <th>Cliente</th>
+                                                <th>Fecha</th>
+                                                <th>Horas</th>
+                                                <th>Estado</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="import-preview-tbody"></tbody>
+                                    </table>
+                                </div>
+                                <div class="import-pagination">
+                                    <button class="btn btn-secondary" id="btn-prev-page" onclick="app.importPrevPage()">
+                                        <i class="fas fa-chevron-left"></i> Anterior
+                                    </button>
+                                    <span id="import-page-info">Página 1 de 1</span>
+                                    <button class="btn btn-secondary" id="btn-next-page" onclick="app.importNextPage()">
+                                        Siguiente <i class="fas fa-chevron-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Step 2: Mapeo -->
+                            <div id="import-step-2" class="import-step hidden">
+                                <h3>Usuarios sin mapear</h3>
+                                <p class="import-hint">Selecciona el colaborador correspondiente para cada usuario de COR</p>
+                                <div class="mapeo-list" id="mapeo-usuarios-list"></div>
+
+                                <h3 style="margin-top: 20px;">Proyectos/Clientes sin mapear</h3>
+                                <p class="import-hint">Selecciona el cliente correspondiente para cada proyecto de COR</p>
+                                <div class="mapeo-list" id="mapeo-proyectos-list"></div>
+                            </div>
+
+                            <!-- Step 3: Confirmar -->
+                            <div id="import-step-3" class="import-step hidden">
+                                <div class="import-final-summary">
+                                    <h3>Resumen de Importación</h3>
+                                    <div class="final-summary-grid">
+                                        <div class="final-stat">
+                                            <span class="final-stat-value" id="final-nuevos">0</span>
+                                            <span class="final-stat-label">Nuevos registros</span>
+                                        </div>
+                                        <div class="final-stat">
+                                            <span class="final-stat-value" id="final-sin-mapear">0</span>
+                                            <span class="final-stat-label">Sin mapear (se ignorarán)</span>
+                                        </div>
+                                        <div class="final-stat">
+                                            <span class="final-stat-value" id="final-duplicados">0</span>
+                                            <span class="final-stat-label">Duplicados encontrados</span>
+                                        </div>
+                                    </div>
+
+                                    <div id="duplicates-detail" class="duplicates-section hidden">
+                                        <h4><i class="fas fa-copy"></i> Detalle de Duplicados</h4>
+                                        <div class="duplicates-table-container">
+                                            <table class="data-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Colaborador</th>
+                                                        <th>Cliente</th>
+                                                        <th>Fecha</th>
+                                                        <th>Horas Archivo</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="duplicates-tbody"></tbody>
+                                            </table>
+                                        </div>
+                                        <div class="duplicate-action-selector">
+                                            <label>¿Qué hacer con los duplicados?</label>
+                                            <div class="duplicate-options">
+                                                <label class="radio-option">
+                                                    <input type="radio" name="duplicate-action" value="ignore" checked>
+                                                    <span><strong>Ignorar</strong> - Mantener datos existentes</span>
+                                                </label>
+                                                <label class="radio-option">
+                                                    <input type="radio" name="duplicate-action" value="update">
+                                                    <span><strong>Actualizar</strong> - Sobrescribir con nuevos datos</span>
+                                                </label>
+                                                <label class="radio-option">
+                                                    <input type="radio" name="duplicate-action" value="sum">
+                                                    <span><strong>Sumar</strong> - Agregar horas al registro existente</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="save-mapeos-option">
+                                        <label>
+                                            <input type="checkbox" id="save-mapeos-check" checked>
+                                            Guardar mapeos para futuras importaciones
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" id="btn-import-back" onclick="app.importStepBack()" style="display: none;">
+                                <i class="fas fa-arrow-left"></i> Atrás
+                            </button>
+                            <button class="btn btn-secondary" onclick="app.closeCorImportModal()">Cancelar</button>
+                            <button class="btn btn-primary" id="btn-import-next" onclick="app.importStepNext()">
+                                Siguiente <i class="fas fa-arrow-right"></i>
+                            </button>
+                            <button class="btn btn-primary" id="btn-import-confirm" onclick="app.confirmCorImport()" style="display: none;">
+                                <i class="fas fa-check"></i> Importar
+                            </button>
+                        </div>
                     </div>
                 </div>
 

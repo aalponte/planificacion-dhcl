@@ -2736,3 +2736,439 @@ select.form-control {
         height: 300px;
     }
 }
+
+/* ============================================
+   COR Import Modal Styles
+   ============================================ */
+
+.modal-xl {
+    max-width: 1200px;
+    width: 95%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-xl .modal-header {
+    flex-shrink: 0;
+}
+
+.modal-xl .modal-body {
+    flex: 1;
+    overflow-y: auto;
+    max-height: calc(90vh - 160px);
+}
+
+.modal-xl .modal-footer {
+    flex-shrink: 0;
+    position: sticky;
+    bottom: 0;
+}
+
+/* Stepper */
+.import-stepper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 24px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--llyc-light-gray);
+}
+
+.import-stepper .step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.import-stepper .step-number {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--llyc-light-gray);
+    color: var(--llyc-gray-subtext);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.import-stepper .step.active .step-number {
+    background: var(--llyc-red);
+    color: white;
+}
+
+.import-stepper .step.completed .step-number {
+    background: #28a745;
+    color: white;
+}
+
+.import-stepper .step-label {
+    font-size: 12px;
+    color: var(--llyc-gray-subtext);
+}
+
+.import-stepper .step.active .step-label {
+    color: var(--llyc-red);
+    font-weight: 600;
+}
+
+.import-stepper .step-line {
+    width: 60px;
+    height: 2px;
+    background: var(--llyc-light-gray);
+    margin: 0 12px;
+}
+
+/* Summary Cards */
+.import-summary-cards {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.summary-card {
+    flex: 1;
+    padding: 16px;
+    border-radius: 8px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.summary-card i {
+    font-size: 24px;
+}
+
+.summary-card.success {
+    background: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+}
+
+.summary-card.warning {
+    background: rgba(255, 193, 7, 0.15);
+    color: #856404;
+}
+
+.summary-card.info {
+    background: rgba(23, 162, 184, 0.1);
+    color: #17a2b8;
+}
+
+.summary-value {
+    font-size: 28px;
+    font-weight: 700;
+}
+
+.summary-label {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+/* Import Filters */
+.import-filters {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+.import-filters label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+/* Import Table */
+.import-table-container {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid var(--llyc-light-gray);
+    border-radius: 8px;
+}
+
+.import-preview-table {
+    font-size: 13px;
+}
+
+.import-preview-table th {
+    position: sticky;
+    top: 0;
+    background: #f8f9fa;
+    z-index: 1;
+}
+
+.import-preview-table td {
+    vertical-align: middle;
+}
+
+.import-preview-table select {
+    font-size: 12px;
+    padding: 4px 8px;
+    max-width: 180px;
+}
+
+.import-preview-table .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.status-badge.ready {
+    background: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+}
+
+.status-badge.unmapped {
+    background: rgba(255, 193, 7, 0.15);
+    color: #856404;
+}
+
+.status-badge.duplicate {
+    background: rgba(23, 162, 184, 0.1);
+    color: #17a2b8;
+}
+
+/* Pagination */
+.import-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--llyc-light-gray);
+}
+
+#import-page-info {
+    font-size: 13px;
+    color: var(--llyc-gray-subtext);
+}
+
+/* Mapeo List */
+.mapeo-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 250px;
+    overflow-y: auto;
+    padding: 8px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.mapeo-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid var(--llyc-light-gray);
+}
+
+.mapeo-item-label {
+    flex: 1;
+    min-width: 200px;
+}
+
+.mapeo-item-label .cor-name {
+    font-weight: 600;
+    color: var(--llyc-gray);
+}
+
+.mapeo-item-label .cor-email {
+    font-size: 12px;
+    color: var(--llyc-gray-subtext);
+}
+
+.mapeo-item-label .cor-count {
+    font-size: 11px;
+    color: var(--llyc-gray-subtext);
+    margin-top: 2px;
+}
+
+.mapeo-item select {
+    flex: 1;
+    max-width: 250px;
+}
+
+.mapeo-item .fa-arrow-right {
+    color: var(--llyc-gray-subtext);
+}
+
+.import-hint {
+    font-size: 13px;
+    color: var(--llyc-gray-subtext);
+    margin-bottom: 12px;
+}
+
+/* Final Summary */
+.import-final-summary h3 {
+    margin-bottom: 16px;
+    text-align: center;
+}
+
+.final-summary-grid {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    margin-bottom: 24px;
+}
+
+.final-stat {
+    text-align: center;
+}
+
+.final-stat-value {
+    display: block;
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--llyc-red);
+}
+
+.final-stat-label {
+    font-size: 13px;
+    color: var(--llyc-gray-subtext);
+}
+
+/* Duplicates Section */
+.duplicates-section {
+    margin-top: 24px;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.duplicates-section h4 {
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #17a2b8;
+}
+
+.duplicates-table-container {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 16px;
+}
+
+.duplicate-action-selector {
+    padding-top: 16px;
+    border-top: 1px solid var(--llyc-light-gray);
+}
+
+.duplicate-action-selector > label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.duplicate-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.radio-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 12px;
+    background: white;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.radio-option:hover {
+    background: #e9ecef;
+}
+
+.radio-option input[type="radio"] {
+    margin-top: 3px;
+}
+
+.radio-option span {
+    font-size: 13px;
+}
+
+.radio-option strong {
+    color: var(--llyc-gray);
+}
+
+/* Save Mapeos Option */
+.save-mapeos-option {
+    margin-top: 20px;
+    padding: 12px;
+    background: rgba(40, 167, 69, 0.05);
+    border-radius: 6px;
+    border: 1px solid rgba(40, 167, 69, 0.2);
+}
+
+.save-mapeos-option label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+/* Import Step visibility */
+.import-step {
+    min-height: 300px;
+}
+
+.import-step.hidden {
+    display: none;
+}
+
+/* Row highlighting */
+.import-preview-table tr.row-unmapped {
+    background: rgba(255, 193, 7, 0.05);
+}
+
+.import-preview-table tr.row-duplicate {
+    background: rgba(23, 162, 184, 0.05);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .modal-xl {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        border-radius: 0;
+    }
+
+    .import-summary-cards {
+        flex-direction: column;
+    }
+
+    .final-summary-grid {
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .mapeo-item {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .mapeo-item select {
+        max-width: none;
+    }
+}

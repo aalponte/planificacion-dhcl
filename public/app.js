@@ -2569,6 +2569,478 @@ const app = {
     },
 
     // ============================================
+    // COR Excel Import with Preview
+    // ============================================
+
+    importState: {
+        step: 1,
+        rows: [],
+        filteredRows: [],
+        colaboradores: [],
+        clientes: [],
+        usuariosSinMapear: [],
+        proyectosSinMapear: [],
+        page: 1,
+        pageSize: 50
+    },
+
+    async previewCorImport() {
+        const fileInput = document.getElementById('cor-excel-file');
+        if (!fileInput || !fileInput.files.length) {
+            showToast('Selecciona un archivo Excel', 'warning');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        try {
+            showToast('Procesando archivo...', 'info');
+
+            const response = await fetch('/api/cor/preview-import', {
+                method: 'POST',
+                credentials: 'include',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                showToast(result.error || 'Error al procesar archivo', 'error');
+                return;
+            }
+
+            // Store data
+            this.importState.rows = result.rows;
+            this.importState.filteredRows = [...result.rows];
+            this.importState.colaboradores = result.colaboradores;
+            this.importState.clientes = result.clientes;
+            this.importState.usuariosSinMapear = result.usuariosSinMapear;
+            this.importState.proyectosSinMapear = result.proyectosSinMapear;
+            this.importState.step = 1;
+            this.importState.page = 1;
+
+            // Update summary
+            document.getElementById('summary-listos').textContent = result.summary.listos;
+            document.getElementById('summary-sin-mapear').textContent = result.summary.sinMapear;
+            document.getElementById('summary-duplicados').textContent = result.summary.duplicados;
+
+            // Reset filters
+            document.getElementById('filter-sin-mapear').checked = false;
+            document.getElementById('filter-duplicados').checked = false;
+
+            // Render table
+            this.renderImportPreviewTable();
+
+            // Show modal
+            document.getElementById('modal-cor-import').classList.remove('hidden');
+            this.updateImportStepper();
+            this.updateImportButtons();
+
+            fileInput.value = '';
+
+        } catch (error) {
+            console.error('[Preview Import] Error:', error);
+            showToast('Error al procesar archivo', 'error');
+        }
+    },
+
+    renderImportPreviewTable() {
+        const tbody = document.getElementById('import-preview-tbody');
+        const { filteredRows, page, pageSize, colaboradores, clientes } = this.importState;
+
+        const start = (page - 1) * pageSize;
+        const end = start + pageSize;
+        const pageRows = filteredRows.slice(start, end);
+        const totalPages = Math.ceil(filteredRows.length / pageSize) || 1;
+
+        // Update pagination info
+        document.getElementById('import-page-info').textContent = `Página ${page} de ${totalPages} (${filteredRows.length} registros)`;
+        document.getElementById('btn-prev-page').disabled = page <= 1;
+        document.getElementById('btn-next-page').disabled = page >= totalPages;
+
+        // Build options for selects
+        const colabOptions = colaboradores.map(c => `<option value="${c.id}">${this.escapeHtml(c.name)}</option>`).join('');
+        const clienteOptions = clientes.map(c => `<option value="${c.id}">${this.escapeHtml(c.name)}</option>`).join('');
+
+        tbody.innerHTML = pageRows.map((row, idx) => {
+            const globalIdx = start + idx;
+            const rowClass = [];
+            if (!row.colaboradorId || !row.clienteId) rowClass.push('row-unmapped');
+            if (row.isDuplicate) rowClass.push('row-duplicate');
+
+            let statusBadge = '';
+            if (!row.colaboradorId || !row.clienteId) {
+                statusBadge = '<span class="status-badge unmapped"><i class="fas fa-exclamation-triangle"></i> Sin mapear</span>';
+            } else if (row.isDuplicate) {
+                statusBadge = '<span class="status-badge duplicate"><i class="fas fa-copy"></i> Duplicado</span>';
+            } else {
+                statusBadge = '<span class="status-badge ready"><i class="fas fa-check"></i> Listo</span>';
+            }
+
+            return `
+                <tr class="${rowClass.join(' ')}" data-row-idx="${globalIdx}">
+                    <td>${row.rowNum}</td>
+                    <td>
+                        <div style="font-size: 12px;">${this.escapeHtml(row.usuario || '-')}</div>
+                        <div style="font-size: 10px; color: #999;">${this.escapeHtml(row.email || '')}</div>
+                    </td>
+                    <td>
+                        <select class="form-control" onchange="app.updateImportRowColab(${globalIdx}, this.value)">
+                            <option value="">-- Seleccionar --</option>
+                            ${colabOptions}
+                        </select>
+                    </td>
+                    <td>
+                        <div style="font-size: 12px;">${this.escapeHtml(row.clienteCor || row.proyectoCor || '-')}</div>
+                        ${row.proyectoCor && row.clienteCor ? `<div style="font-size: 10px; color: #999;">${this.escapeHtml(row.proyectoCor)}</div>` : ''}
+                    </td>
+                    <td>
+                        <select class="form-control" onchange="app.updateImportRowCliente(${globalIdx}, this.value)">
+                            <option value="">-- Seleccionar --</option>
+                            ${clienteOptions}
+                        </select>
+                    </td>
+                    <td>${row.fecha}</td>
+                    <td>${row.horas}h</td>
+                    <td>${statusBadge}</td>
+                </tr>
+            `;
+        }).join('');
+
+        // Set selected values
+        pageRows.forEach((row, idx) => {
+            const globalIdx = start + idx;
+            const tr = tbody.querySelector(`tr[data-row-idx="${globalIdx}"]`);
+            if (tr) {
+                const colabSelect = tr.querySelectorAll('select')[0];
+                const clienteSelect = tr.querySelectorAll('select')[1];
+                if (row.colaboradorId) colabSelect.value = row.colaboradorId;
+                if (row.clienteId) clienteSelect.value = row.clienteId;
+            }
+        });
+    },
+
+    updateImportRowColab(idx, value) {
+        this.importState.rows[idx].colaboradorId = value ? parseInt(value) : null;
+        this.updateImportSummary();
+    },
+
+    updateImportRowCliente(idx, value) {
+        this.importState.rows[idx].clienteId = value ? parseInt(value) : null;
+        this.updateImportSummary();
+    },
+
+    updateImportSummary() {
+        const { rows } = this.importState;
+        const listos = rows.filter(r => r.colaboradorId && r.clienteId && !r.isDuplicate).length;
+        const sinMapear = rows.filter(r => !r.colaboradorId || !r.clienteId).length;
+        const duplicados = rows.filter(r => r.isDuplicate && r.colaboradorId && r.clienteId).length;
+
+        document.getElementById('summary-listos').textContent = listos;
+        document.getElementById('summary-sin-mapear').textContent = sinMapear;
+        document.getElementById('summary-duplicados').textContent = duplicados;
+    },
+
+    filterImportRows() {
+        const filterSinMapear = document.getElementById('filter-sin-mapear').checked;
+        const filterDuplicados = document.getElementById('filter-duplicados').checked;
+
+        let filtered = [...this.importState.rows];
+
+        if (filterSinMapear) {
+            filtered = filtered.filter(r => !r.colaboradorId || !r.clienteId);
+        }
+        if (filterDuplicados) {
+            filtered = filtered.filter(r => r.isDuplicate);
+        }
+
+        this.importState.filteredRows = filtered;
+        this.importState.page = 1;
+        this.renderImportPreviewTable();
+    },
+
+    importPrevPage() {
+        if (this.importState.page > 1) {
+            this.importState.page--;
+            this.renderImportPreviewTable();
+        }
+    },
+
+    importNextPage() {
+        const totalPages = Math.ceil(this.importState.filteredRows.length / this.importState.pageSize);
+        if (this.importState.page < totalPages) {
+            this.importState.page++;
+            this.renderImportPreviewTable();
+        }
+    },
+
+    closeCorImportModal() {
+        document.getElementById('modal-cor-import').classList.add('hidden');
+        this.importState = {
+            step: 1,
+            rows: [],
+            filteredRows: [],
+            colaboradores: [],
+            clientes: [],
+            usuariosSinMapear: [],
+            proyectosSinMapear: [],
+            page: 1,
+            pageSize: 50
+        };
+    },
+
+    updateImportStepper() {
+        const steps = document.querySelectorAll('.import-stepper .step');
+        steps.forEach((step, idx) => {
+            step.classList.remove('active', 'completed');
+            if (idx + 1 < this.importState.step) {
+                step.classList.add('completed');
+            } else if (idx + 1 === this.importState.step) {
+                step.classList.add('active');
+            }
+        });
+
+        // Show/hide step content
+        for (let i = 1; i <= 3; i++) {
+            const stepDiv = document.getElementById(`import-step-${i}`);
+            if (stepDiv) {
+                stepDiv.classList.toggle('hidden', i !== this.importState.step);
+            }
+        }
+    },
+
+    updateImportButtons() {
+        const btnBack = document.getElementById('btn-import-back');
+        const btnNext = document.getElementById('btn-import-next');
+        const btnConfirm = document.getElementById('btn-import-confirm');
+
+        btnBack.style.display = this.importState.step > 1 ? 'inline-flex' : 'none';
+        btnNext.style.display = this.importState.step < 3 ? 'inline-flex' : 'none';
+        btnConfirm.style.display = this.importState.step === 3 ? 'inline-flex' : 'none';
+    },
+
+    importStepNext() {
+        if (this.importState.step === 1) {
+            // Go to Mapeo step
+            this.importState.step = 2;
+            this.renderMapeoStep();
+        } else if (this.importState.step === 2) {
+            // Apply mapeos from step 2 to rows
+            this.applyMapeos();
+            // Go to Confirm step
+            this.importState.step = 3;
+            this.renderConfirmStep();
+        }
+        this.updateImportStepper();
+        this.updateImportButtons();
+    },
+
+    importStepBack() {
+        if (this.importState.step > 1) {
+            this.importState.step--;
+            this.updateImportStepper();
+            this.updateImportButtons();
+
+            if (this.importState.step === 1) {
+                this.renderImportPreviewTable();
+            }
+        }
+    },
+
+    renderMapeoStep() {
+        const { usuariosSinMapear, proyectosSinMapear, colaboradores, clientes } = this.importState;
+
+        // Render usuarios sin mapear
+        const usuariosContainer = document.getElementById('mapeo-usuarios-list');
+        if (usuariosSinMapear.length === 0) {
+            usuariosContainer.innerHTML = '<p style="padding: 16px; color: #28a745;"><i class="fas fa-check-circle"></i> Todos los usuarios están mapeados</p>';
+        } else {
+            const colabOptions = colaboradores.map(c => `<option value="${c.id}">${this.escapeHtml(c.name)}</option>`).join('');
+            usuariosContainer.innerHTML = usuariosSinMapear.map((u, idx) => `
+                <div class="mapeo-item" data-mapeo-user-idx="${idx}">
+                    <div class="mapeo-item-label">
+                        <div class="cor-name">${this.escapeHtml(u.nombre)}</div>
+                        ${u.email ? `<div class="cor-email">${this.escapeHtml(u.email)}</div>` : ''}
+                        <div class="cor-count">${u.count} registros</div>
+                    </div>
+                    <i class="fas fa-arrow-right"></i>
+                    <select class="form-control" data-mapeo-user-nombre="${this.escapeHtml(u.nombre)}" data-mapeo-user-email="${this.escapeHtml(u.email || '')}">
+                        <option value="">-- Seleccionar colaborador --</option>
+                        ${colabOptions}
+                    </select>
+                </div>
+            `).join('');
+        }
+
+        // Render proyectos sin mapear
+        const proyectosContainer = document.getElementById('mapeo-proyectos-list');
+        if (proyectosSinMapear.length === 0) {
+            proyectosContainer.innerHTML = '<p style="padding: 16px; color: #28a745;"><i class="fas fa-check-circle"></i> Todos los proyectos están mapeados</p>';
+        } else {
+            const clienteOptions = clientes.map(c => `<option value="${c.id}">${this.escapeHtml(c.name)}</option>`).join('');
+            proyectosContainer.innerHTML = proyectosSinMapear.map((p, idx) => `
+                <div class="mapeo-item" data-mapeo-proj-idx="${idx}">
+                    <div class="mapeo-item-label">
+                        <div class="cor-name">${this.escapeHtml(p.cliente || p.proyecto || '-')}</div>
+                        ${p.proyecto && p.cliente ? `<div class="cor-email">${this.escapeHtml(p.proyecto)}</div>` : ''}
+                        <div class="cor-count">${p.count} registros</div>
+                    </div>
+                    <i class="fas fa-arrow-right"></i>
+                    <select class="form-control" data-mapeo-proj-cliente="${this.escapeHtml(p.cliente || '')}" data-mapeo-proj-proyecto="${this.escapeHtml(p.proyecto || '')}">
+                        <option value="">-- Seleccionar cliente --</option>
+                        ${clienteOptions}
+                    </select>
+                </div>
+            `).join('');
+        }
+    },
+
+    applyMapeos() {
+        // Get user mapeos from step 2
+        const userSelects = document.querySelectorAll('#mapeo-usuarios-list select');
+        const userMapeos = new Map();
+        userSelects.forEach(select => {
+            const nombre = select.dataset.mapeoUserNombre;
+            const email = select.dataset.mapeoUserEmail;
+            const colaboradorId = select.value ? parseInt(select.value) : null;
+            if (colaboradorId) {
+                if (nombre) userMapeos.set(nombre.toLowerCase().trim(), colaboradorId);
+                if (email) userMapeos.set(email.toLowerCase().trim(), colaboradorId);
+            }
+        });
+
+        // Get project mapeos from step 2
+        const projSelects = document.querySelectorAll('#mapeo-proyectos-list select');
+        const projMapeos = new Map();
+        projSelects.forEach(select => {
+            const cliente = select.dataset.mapeoProjCliente;
+            const proyecto = select.dataset.mapeoProjProyecto;
+            const clienteId = select.value ? parseInt(select.value) : null;
+            if (clienteId) {
+                if (cliente) projMapeos.set(cliente.toLowerCase().trim(), clienteId);
+                if (proyecto) projMapeos.set(proyecto.toLowerCase().trim(), clienteId);
+            }
+        });
+
+        // Apply to rows
+        this.importState.rows.forEach(row => {
+            // Apply user mapeo
+            if (!row.colaboradorId) {
+                const key1 = row.email ? row.email.toLowerCase().trim() : null;
+                const key2 = row.usuario ? row.usuario.toLowerCase().trim() : null;
+                if (key1 && userMapeos.has(key1)) {
+                    row.colaboradorId = userMapeos.get(key1);
+                } else if (key2 && userMapeos.has(key2)) {
+                    row.colaboradorId = userMapeos.get(key2);
+                }
+            }
+
+            // Apply project mapeo
+            if (!row.clienteId) {
+                const key1 = row.clienteCor ? row.clienteCor.toLowerCase().trim() : null;
+                const key2 = row.proyectoCor ? row.proyectoCor.toLowerCase().trim() : null;
+                if (key1 && projMapeos.has(key1)) {
+                    row.clienteId = projMapeos.get(key1);
+                } else if (key2 && projMapeos.has(key2)) {
+                    row.clienteId = projMapeos.get(key2);
+                }
+            }
+        });
+
+        this.updateImportSummary();
+    },
+
+    renderConfirmStep() {
+        const { rows, colaboradores, clientes } = this.importState;
+
+        // Calculate final stats
+        const mapped = rows.filter(r => r.colaboradorId && r.clienteId);
+        const duplicates = mapped.filter(r => r.isDuplicate);
+        const nuevos = mapped.length - duplicates.length;
+        const sinMapear = rows.length - mapped.length;
+
+        document.getElementById('final-nuevos').textContent = nuevos;
+        document.getElementById('final-sin-mapear').textContent = sinMapear;
+        document.getElementById('final-duplicados').textContent = duplicates.length;
+
+        // Build lookup maps for names
+        const colabMap = new Map(colaboradores.map(c => [c.id, c.name]));
+        const clienteMap = new Map(clientes.map(c => [c.id, c.name]));
+
+        // Show duplicates detail if any
+        const duplicatesSection = document.getElementById('duplicates-detail');
+        if (duplicates.length > 0) {
+            duplicatesSection.classList.remove('hidden');
+            const tbody = document.getElementById('duplicates-tbody');
+            tbody.innerHTML = duplicates.slice(0, 20).map(row => `
+                <tr>
+                    <td>${this.escapeHtml(colabMap.get(row.colaboradorId) || '-')}</td>
+                    <td>${this.escapeHtml(clienteMap.get(row.clienteId) || '-')}</td>
+                    <td>${row.fecha}</td>
+                    <td>${row.horas}h</td>
+                </tr>
+            `).join('');
+            if (duplicates.length > 20) {
+                tbody.innerHTML += `<tr><td colspan="4" style="text-align: center; color: #999;">... y ${duplicates.length - 20} más</td></tr>`;
+            }
+        } else {
+            duplicatesSection.classList.add('hidden');
+        }
+    },
+
+    async confirmCorImport() {
+        const { rows } = this.importState;
+
+        // Filter only mapped rows
+        const rowsToImport = rows.filter(r => r.colaboradorId && r.clienteId);
+
+        if (rowsToImport.length === 0) {
+            showToast('No hay registros para importar. Completa los mapeos primero.', 'warning');
+            return;
+        }
+
+        // Get duplicate action
+        const duplicateAction = document.querySelector('input[name="duplicate-action"]:checked')?.value || 'ignore';
+        const saveMapeos = document.getElementById('save-mapeos-check').checked;
+
+        try {
+            showToast('Importando registros...', 'info');
+
+            const response = await fetch('/api/cor/confirmar-import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    rows: rowsToImport,
+                    duplicateAction,
+                    saveMapeos
+                })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                showToast(result.error || 'Error al importar', 'error');
+                return;
+            }
+
+            showToast(result.message, 'success');
+            this.closeCorImportModal();
+
+            // Reload mapeos if saved
+            if (saveMapeos) {
+                this.loadCorMapeoUsuarios();
+                this.loadCorMapeoProyectos();
+            }
+
+        } catch (error) {
+            console.error('[Confirm Import] Error:', error);
+            showToast('Error al importar registros', 'error');
+        }
+    },
+
+    // ============================================
     // COMPARATIVO Functions
     // ============================================
 
