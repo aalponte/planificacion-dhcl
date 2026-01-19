@@ -3172,3 +3172,62 @@ select.form-control {
         max-width: none;
     }
 }
+
+/* Import Progress Overlay */
+.import-progress-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    border-radius: 8px;
+}
+
+.import-progress-overlay.hidden {
+    display: none;
+}
+
+.import-progress-content {
+    text-align: center;
+    padding: 40px;
+}
+
+.import-progress-spinner {
+    font-size: 48px;
+    color: var(--llyc-red);
+    margin-bottom: 20px;
+}
+
+.import-progress-content h4 {
+    margin: 0 0 20px 0;
+    font-size: 18px;
+    color: var(--llyc-gray);
+}
+
+.import-progress-bar-container {
+    width: 300px;
+    height: 8px;
+    background: var(--llyc-light-gray);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 0 auto 16px;
+}
+
+.import-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--llyc-red) 0%, #ff6b7a 100%);
+    border-radius: 4px;
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.import-progress-content p {
+    margin: 0;
+    font-size: 14px;
+    color: var(--llyc-gray-subtext);
+}

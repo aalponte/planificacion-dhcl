@@ -3004,9 +3004,36 @@ const app = {
         const duplicateAction = document.querySelector('input[name="duplicate-action"]:checked')?.value || 'ignore';
         const saveMapeos = document.getElementById('save-mapeos-check').checked;
 
-        try {
-            showToast('Importando registros...', 'info');
+        // Show progress overlay
+        const overlay = document.getElementById('import-progress-overlay');
+        const progressBar = document.getElementById('import-progress-bar');
+        const progressText = document.getElementById('import-progress-text');
+        const progressTitle = document.getElementById('import-progress-title');
+        const btnConfirm = document.getElementById('btn-import-confirm');
+        const btnBack = document.getElementById('btn-import-back');
 
+        overlay.classList.remove('hidden');
+        btnConfirm.disabled = true;
+        btnBack.disabled = true;
+        progressBar.style.width = '0%';
+        progressTitle.textContent = 'Importando registros...';
+        progressText.textContent = `Preparando ${rowsToImport.length} registros...`;
+
+        // Simulate progress while waiting for response
+        let progress = 0;
+        const totalRows = rowsToImport.length;
+        const progressInterval = setInterval(() => {
+            // Simulate progress up to 90% (last 10% when complete)
+            if (progress < 90) {
+                progress += Math.random() * 15;
+                if (progress > 90) progress = 90;
+                progressBar.style.width = `${progress}%`;
+                const estimatedProcessed = Math.floor((progress / 100) * totalRows);
+                progressText.textContent = `Procesando registros... (${estimatedProcessed} de ${totalRows})`;
+            }
+        }, 300);
+
+        try {
             const response = await fetch('/api/cor/confirmar-import', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -3018,23 +3045,43 @@ const app = {
                 })
             });
 
+            clearInterval(progressInterval);
+
             const result = await response.json();
 
             if (!response.ok) {
+                overlay.classList.add('hidden');
+                btnConfirm.disabled = false;
+                btnBack.disabled = false;
                 showToast(result.error || 'Error al importar', 'error');
                 return;
             }
 
-            showToast(result.message, 'success');
-            this.closeCorImportModal();
+            // Complete progress animation
+            progressBar.style.width = '100%';
+            progressTitle.textContent = '¡Importación completada!';
+            progressText.textContent = result.message;
 
-            // Reload mapeos if saved
-            if (saveMapeos) {
-                this.loadCorMapeoUsuarios();
-                this.loadCorMapeoProyectos();
-            }
+            // Wait a moment to show completion, then close
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+                btnConfirm.disabled = false;
+                btnBack.disabled = false;
+                showToast(result.message, 'success');
+                this.closeCorImportModal();
+
+                // Reload mapeos if saved
+                if (saveMapeos) {
+                    this.loadCorMapeoUsuarios();
+                    this.loadCorMapeoProyectos();
+                }
+            }, 1500);
 
         } catch (error) {
+            clearInterval(progressInterval);
+            overlay.classList.add('hidden');
+            btnConfirm.disabled = false;
+            btnBack.disabled = false;
             console.error('[Confirm Import] Error:', error);
             showToast('Error al importar registros', 'error');
         }
