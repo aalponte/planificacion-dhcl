@@ -1675,6 +1675,16 @@ const app = {
             return;
         }
 
+        // LLYC Brand Colors
+        const LLYC = {
+            rojo: 'F54963',
+            azulOscuro: '0A263B',
+            turquesa: '36A7B7',
+            blanco: 'FFFFFF',
+            grisOscuro: '58595B',
+            grisMuyClaro: 'E6E7E8'
+        };
+
         // Calculate week dates (Monday to Friday)
         function getDateOfISOWeek(w, y) {
             const simple = new Date(y, 0, 1 + (w - 1) * 7);
@@ -1717,6 +1727,14 @@ const app = {
         // Build data for Excel
         const excelData = [];
 
+        // Title row
+        const areaSelect = document.getElementById('plan-area');
+        const areaName = areaSelect?.options[areaSelect.selectedIndex]?.text || 'Todas las áreas';
+        excelData.push([`LLYC - Planificación Semana ${week} / ${year} - ${areaName}`]);
+
+        // Empty row
+        excelData.push([]);
+
         // Header row
         excelData.push(['Proyecto/Cliente', ...dateHeaders]);
 
@@ -1733,23 +1751,100 @@ const app = {
 
         // Create workbook and worksheet
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_array ? XLSX.utils.aoa_to_sheet(excelData) : XLSX.utils.aoa_to_sheet(excelData);
+        const ws = XLSX.utils.aoa_to_sheet(excelData);
+
+        // Define styles
+        const titleStyle = {
+            font: { name: 'Montserrat', sz: 16, bold: true, color: { rgb: LLYC.rojo } },
+            alignment: { horizontal: 'left', vertical: 'center' }
+        };
+
+        const headerStyle = {
+            font: { name: 'Montserrat', sz: 11, bold: true, color: { rgb: LLYC.blanco } },
+            fill: { fgColor: { rgb: LLYC.azulOscuro } },
+            alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+            border: {
+                top: { style: 'thin', color: { rgb: LLYC.grisOscuro } },
+                bottom: { style: 'thin', color: { rgb: LLYC.grisOscuro } },
+                left: { style: 'thin', color: { rgb: LLYC.grisOscuro } },
+                right: { style: 'thin', color: { rgb: LLYC.grisOscuro } }
+            }
+        };
+
+        const clientStyle = {
+            font: { name: 'Open Sans', sz: 10, bold: true, color: { rgb: LLYC.azulOscuro } },
+            fill: { fgColor: { rgb: LLYC.grisMuyClaro } },
+            alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
+            border: {
+                top: { style: 'thin', color: { rgb: LLYC.grisOscuro } },
+                bottom: { style: 'thin', color: { rgb: LLYC.grisOscuro } },
+                left: { style: 'thin', color: { rgb: LLYC.grisOscuro } },
+                right: { style: 'thin', color: { rgb: LLYC.grisOscuro } }
+            }
+        };
+
+        const cellStyle = {
+            font: { name: 'Open Sans', sz: 9, color: { rgb: LLYC.grisOscuro } },
+            alignment: { horizontal: 'left', vertical: 'top', wrapText: true },
+            border: {
+                top: { style: 'thin', color: { rgb: LLYC.grisMuyClaro } },
+                bottom: { style: 'thin', color: { rgb: LLYC.grisMuyClaro } },
+                left: { style: 'thin', color: { rgb: LLYC.grisMuyClaro } },
+                right: { style: 'thin', color: { rgb: LLYC.grisMuyClaro } }
+            }
+        };
+
+        // Apply styles to cells
+        const range = XLSX.utils.decode_range(ws['!ref']);
+
+        for (let R = range.s.r; R <= range.e.r; R++) {
+            for (let C = range.s.c; C <= range.e.c; C++) {
+                const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+                if (!ws[cellRef]) ws[cellRef] = { v: '', t: 's' };
+
+                if (R === 0) {
+                    // Title row
+                    ws[cellRef].s = titleStyle;
+                } else if (R === 2) {
+                    // Header row
+                    ws[cellRef].s = headerStyle;
+                } else if (R > 2) {
+                    if (C === 0) {
+                        // Client name column
+                        ws[cellRef].s = clientStyle;
+                    } else {
+                        // Data cells
+                        ws[cellRef].s = cellStyle;
+                    }
+                }
+            }
+        }
+
+        // Merge title cells
+        ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
 
         // Set column widths
         ws['!cols'] = [
-            { wch: 30 }, // Proyecto/Cliente
-            { wch: 25 }, // Lunes
-            { wch: 25 }, // Martes
-            { wch: 25 }, // Miércoles
-            { wch: 25 }, // Jueves
-            { wch: 25 }  // Viernes
+            { wch: 32 }, // Proyecto/Cliente
+            { wch: 28 }, // Lunes
+            { wch: 28 }, // Martes
+            { wch: 28 }, // Miércoles
+            { wch: 28 }, // Jueves
+            { wch: 28 }  // Viernes
+        ];
+
+        // Set row heights
+        ws['!rows'] = [
+            { hpt: 30 },  // Title
+            { hpt: 15 },  // Empty
+            { hpt: 25 }   // Header
         ];
 
         // Add worksheet to workbook
         XLSX.utils.book_append_sheet(wb, ws, `Semana ${week}`);
 
         // Generate filename
-        const filename = `Planificacion_Semana${week}_${year}.xlsx`;
+        const filename = `LLYC_Planificacion_Semana${week}_${year}.xlsx`;
 
         // Download the file
         XLSX.writeFile(wb, filename);
