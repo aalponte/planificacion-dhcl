@@ -1665,6 +1665,98 @@ const app = {
         }
     },
 
+    exportPlanningToExcel() {
+        const year = parseInt(document.getElementById('plan-year')?.value || this.state.currentYear);
+        const week = parseInt(document.getElementById('plan-week')?.value || this.state.currentWeek);
+        const allocations = this.state.currentAllocations || [];
+
+        if (allocations.length === 0) {
+            showToast('No hay datos para exportar en esta semana', 'warning');
+            return;
+        }
+
+        // Calculate week dates (Monday to Friday)
+        function getDateOfISOWeek(w, y) {
+            const simple = new Date(y, 0, 1 + (w - 1) * 7);
+            const dow = simple.getDay();
+            const ISOweekStart = simple;
+            if (dow <= 4)
+                ISOweekStart.setDate(simple.getDate() - simple.getDay() + 1);
+            else
+                ISOweekStart.setDate(simple.getDate() + 8 - simple.getDay());
+            return ISOweekStart;
+        }
+
+        const monday = getDateOfISOWeek(week, year);
+        const weekDates = [];
+        const dateHeaders = [];
+
+        for (let i = 0; i < 5; i++) {
+            const currentDate = new Date(monday);
+            currentDate.setDate(monday.getDate() + i);
+            const dateStr = currentDate.toISOString().split('T')[0];
+            const dayName = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie'][i];
+            const dayMonth = `${currentDate.getDate()}/${(currentDate.getMonth() + 1).toString().padStart(2, '0')}`;
+            weekDates.push(dateStr);
+            dateHeaders.push(`${dayName} ${dayMonth}`);
+        }
+
+        // Group allocations by client
+        const byClient = {};
+        allocations.forEach(alloc => {
+            const clientName = alloc.cliente_name;
+            if (!byClient[clientName]) {
+                byClient[clientName] = {};
+            }
+            if (!byClient[clientName][alloc.date]) {
+                byClient[clientName][alloc.date] = [];
+            }
+            byClient[clientName][alloc.date].push(`${alloc.colaborador_name} (${alloc.hours}h)`);
+        });
+
+        // Build data for Excel
+        const excelData = [];
+
+        // Header row
+        excelData.push(['Proyecto/Cliente', ...dateHeaders]);
+
+        // Data rows - sorted alphabetically by client name
+        const sortedClients = Object.keys(byClient).sort((a, b) => a.localeCompare(b));
+        sortedClients.forEach(clientName => {
+            const row = [clientName];
+            weekDates.forEach(dateStr => {
+                const assignees = byClient[clientName][dateStr] || [];
+                row.push(assignees.join('\n'));
+            });
+            excelData.push(row);
+        });
+
+        // Create workbook and worksheet
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_array ? XLSX.utils.aoa_to_sheet(excelData) : XLSX.utils.aoa_to_sheet(excelData);
+
+        // Set column widths
+        ws['!cols'] = [
+            { wch: 30 }, // Proyecto/Cliente
+            { wch: 25 }, // Lunes
+            { wch: 25 }, // Martes
+            { wch: 25 }, // Miércoles
+            { wch: 25 }, // Jueves
+            { wch: 25 }  // Viernes
+        ];
+
+        // Add worksheet to workbook
+        XLSX.utils.book_append_sheet(wb, ws, `Semana ${week}`);
+
+        // Generate filename
+        const filename = `Planificacion_Semana${week}_${year}.xlsx`;
+
+        // Download the file
+        XLSX.writeFile(wb, filename);
+
+        showToast(`Exportado: ${filename}`, 'success');
+    },
+
     async createNewPlanning() {
         const currentYear = parseInt(document.getElementById('plan-year').value);
         const currentWeek = parseInt(document.getElementById('plan-week').value);
