@@ -87,7 +87,29 @@ app.use(cors({
 app.use(cookieParser());
 
 // Session Configuration
+// Session store: persist in PostgreSQL when DATABASE_URL is set (production),
+// otherwise fall back to the in-memory store (local development).
+// This prevents sessions from being lost on server restarts / cold starts
+// (e.g. Render free-tier spin-down), which caused 401 "No autorizado" errors
+// mid-flow (notably during the multi-step COR import).
+let sessionStore; // undefined = express-session default MemoryStore
+if (process.env.DATABASE_URL) {
+    const pgSession = require('connect-pg-simple')(session);
+    sessionStore = new pgSession({
+        conObject: {
+            connectionString: process.env.DATABASE_URL,
+            ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+        },
+        tableName: 'session',
+        createTableIfMissing: true // auto-create the session table on first run
+    });
+    console.log('[Session] Using PostgreSQL session store');
+} else {
+    console.log('[Session] Using in-memory session store (development)');
+}
+
 app.use(session({
+    store: sessionStore,
     secret: SESSION_SECRET,
     name: 'planificacion_sid', // Custom session cookie name
     resave: false,
@@ -1070,10 +1092,22 @@ app.get('/api/allocations', requireAuth, (req, res) => {
 
 app.get('/api/allocations/weeks', requireAuth, (req, res) => {
     const year = validateYear(req.query.year);
-    const sql = year
-        ? 'SELECT DISTINCT year, week_number FROM allocations WHERE year = ? ORDER BY year DESC, week_number DESC'
-        : 'SELECT DISTINCT year, week_number FROM allocations ORDER BY year DESC, week_number DESC';
-    const params = year ? [year] : [];
+    const id_area = req.query.id_area ? validateId(req.query.id_area) : null;
+    const region_id = req.query.region_id ? validateId(req.query.region_id) : null;
+    const pais_id = req.query.pais_id ? validateId(req.query.pais_id) : null;
+
+    let sql = 'SELECT DISTINCT year, week_number FROM allocations';
+    const conditions = [];
+    const params = [];
+
+    if (year) { conditions.push('year = ?'); params.push(year); }
+    if (id_area) { conditions.push('id_area = ?'); params.push(id_area); }
+    if (region_id) { conditions.push('region_id = ?'); params.push(region_id); }
+    if (pais_id) { conditions.push('pais_id = ?'); params.push(pais_id); }
+
+    if (conditions.length > 0) sql += ' WHERE ' + conditions.join(' AND ');
+    sql += ' ORDER BY year DESC, week_number DESC';
+
     db.all(sql, params, (err, rows) => {
         if (err) return res.status(500).json({ error: 'Error del servidor' });
         res.json(rows);

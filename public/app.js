@@ -162,7 +162,14 @@ const app = {
         if (!select) return;
         try {
             const year = parseInt(document.getElementById('plan-year')?.value || this.state.currentYear);
-            const response = await fetch(`/api/allocations/weeks?year=${year}`, {
+            const id_area = document.getElementById('plan-area')?.value;
+            const region_id = document.getElementById('plan-region')?.value;
+            const pais_id = document.getElementById('plan-pais')?.value;
+            const params = [`year=${year}`];
+            if (id_area) params.push(`id_area=${id_area}`);
+            if (region_id) params.push(`region_id=${region_id}`);
+            if (pais_id) params.push(`pais_id=${pais_id}`);
+            const response = await fetch(`/api/allocations/weeks?${params.join('&')}`, {
                 credentials: 'include'
             });
             const weeks = await response.json();
@@ -183,7 +190,12 @@ const app = {
                     select.appendChild(option);
                 });
             }
-            if (currentValue) select.value = currentValue;
+            // Restaurar la semana seleccionada si sigue disponible; si no, usar la más reciente
+            if (currentValue && [...select.options].some(o => o.value === currentValue)) {
+                select.value = currentValue;
+            } else if (select.options.length > 0) {
+                select.selectedIndex = 0;
+            }
         } catch (error) {
             console.error('[Planning] Error loading weeks:', error);
         }
@@ -475,6 +487,8 @@ const app = {
     },
 
     async loadPlanning() {
+        // Recargar semanas disponibles según el filtro actual (área/región/país)
+        await this.populateWeekDropdown();
         const year = document.getElementById('plan-year')?.value || this.state.currentYear;
         const week = document.getElementById('plan-week')?.value || this.state.currentWeek;
         const areaId = document.getElementById('plan-area')?.value || this.state.selectedAreaId;
@@ -510,9 +524,8 @@ const app = {
         if (yearSelect && yearSelect.options.length === 0) {
             this.populateViewerYearSelector();
         }
-        if (weekSelect && weekSelect.options.length === 0) {
-            await this.populateViewerWeekDropdown();
-        }
+        // Recargar semanas disponibles según el filtro actual (área/región/país)
+        await this.populateViewerWeekDropdown();
 
         const year = yearSelect?.value || this.state.currentYear;
         const week = weekSelect?.value || this.state.currentWeek;
@@ -552,9 +565,17 @@ const app = {
     async populateViewerWeekDropdown() {
         const select = document.getElementById('viewer-week');
         if (!select) return;
+        const currentValue = select.value;
         try {
             const year = parseInt(document.getElementById('viewer-year')?.value || this.state.currentYear);
-            const response = await fetch(`/api/allocations/weeks?year=${year}`, {
+            const id_area = document.getElementById('viewer-area')?.value;
+            const region_id = document.getElementById('viewer-region')?.value;
+            const pais_id = document.getElementById('viewer-pais')?.value;
+            const params = [`year=${year}`];
+            if (id_area) params.push(`id_area=${id_area}`);
+            if (region_id) params.push(`region_id=${region_id}`);
+            if (pais_id) params.push(`pais_id=${pais_id}`);
+            const response = await fetch(`/api/allocations/weeks?${params.join('&')}`, {
                 credentials: 'include'
             });
             const weeks = await response.json();
@@ -573,6 +594,12 @@ const app = {
                     option.textContent = `Semana ${w.week_number}`;
                     select.appendChild(option);
                 });
+            }
+            // Restaurar la semana seleccionada si sigue disponible; si no, usar la más reciente
+            if (currentValue && [...select.options].some(o => o.value === currentValue)) {
+                select.value = currentValue;
+            } else if (select.options.length > 0) {
+                select.selectedIndex = 0;
             }
         } catch (error) {
             console.error('[Viewer] Error loading weeks:', error);
@@ -2113,6 +2140,12 @@ const app = {
             const result = await response.json();
             console.log('[Delete Week] Result:', result);
 
+            // Si no se borró nada, avisar (normalmente por desajuste de filtro de área/región/país)
+            if (result.changes === 0) {
+                showToast(`No se eliminó ninguna asignación en la semana ${week}/${year} para ${filterDesc}. Revisa que el filtro de área/región/país coincida con los datos.`, 'warning');
+                return;
+            }
+
             const deletedWeek = week;
             const deletedYear = year;
 
@@ -3240,7 +3273,11 @@ const app = {
                 overlay.classList.add('hidden');
                 btnConfirm.disabled = false;
                 btnBack.disabled = false;
-                showToast(result.error || 'Error al importar', 'error');
+                if (response.status === 401) {
+                    showToast('Tu sesión expiró. Vuelve a iniciar sesión y repite la importación (no se guardó ningún registro).', 'error');
+                } else {
+                    showToast(result.error || 'Error al importar', 'error');
+                }
                 return;
             }
 
